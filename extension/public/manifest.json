@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Chess Video Position Explorer",
+  "version": "0.0.0",
+  "description": "Capture a chess position from a video, try a candidate move, and see the engine's reply. Runs locally.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Open Chess Position Explorer"
+  },
+  "side_panel": {
+    "default_path": "src/panel/sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["sidePanel"]
+}
