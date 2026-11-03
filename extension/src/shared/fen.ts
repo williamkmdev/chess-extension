@@ -12,6 +12,7 @@ import {
   type CastlingRight,
   type CastlingRights,
   type Color,
+  type ConfirmedPosition,
   type DraftPosition,
   type Piece,
   type PieceType,
@@ -36,9 +37,6 @@ export interface FenError {
 export type ParseFenResult =
   | { readonly ok: true; readonly position: DraftPosition }
   | { readonly ok: false; readonly errors: readonly FenError[] };
-
-/** A position whose side to move is known, which FEN requires. */
-export type FenSerializablePosition = DraftPosition & { readonly sideToMove: Color };
 
 const MAX_FIELDS = 6;
 
@@ -124,15 +122,11 @@ export function parseFen(text: string): ParseFenResult {
   };
 }
 
-export function hasKnownSideToMove(position: DraftPosition): position is FenSerializablePosition {
-  return position.sideToMove !== 'unknown';
-}
-
 /**
- * Serializes a position to a six-field FEN string. Castling is always written in the
- * canonical `KQkq` order.
+ * Serializes a confirmed position to a six-field FEN string. Castling is always
+ * written in the canonical `KQkq` order.
  */
-export function toFen(position: FenSerializablePosition): string {
+export function toFen(position: ConfirmedPosition): string {
   const castling = CASTLING_RIGHTS.filter((right) => position.castling[right].value)
     .map((right) => CASTLING_LETTERS[right])
     .join('');

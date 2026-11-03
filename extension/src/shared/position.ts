@@ -59,6 +59,19 @@ export interface DraftPosition {
   readonly fullmoveNumber: MetadataField<number>;
 }
 
+declare const confirmedBrand: unique symbol;
+
+/**
+ * A draft the user has confirmed: side to move is known and the position passed
+ * validation. The brand exists only in the type system, so the only way to obtain one
+ * is `confirmPosition`; FEN export and engine analysis accept nothing else.
+ * Metadata sources are kept, so defaults the user accepted can still be labeled.
+ */
+export type ConfirmedPosition = DraftPosition & {
+  readonly sideToMove: Color;
+  readonly [confirmedBrand]: true;
+};
+
 /** All four castling rights set to the same value and source. */
 export function uniformCastling(
   value: boolean,
