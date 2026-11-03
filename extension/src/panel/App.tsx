@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import type { EngineTransport } from '../engine/engine';
 import { confirmPosition, type ConfirmResult } from '../shared/confirm';
 import { isSamePiece, movePiece, placePiece, withAssumedCastling } from '../shared/editing';
 import {
@@ -9,6 +10,8 @@ import {
   type DraftPosition,
   type Square,
 } from '../shared/position';
+import { AnalysisPanel } from './analysis/AnalysisPanel';
+import { ANALYSIS_DEPTH, useAnalysis } from './analysis/useAnalysis';
 import { Board } from './board/Board';
 import { pieceImage } from './board/pieceImages';
 import { ConfirmPanel } from './editor/ConfirmPanel';
@@ -23,7 +26,12 @@ interface Confirmation {
   readonly result: ConfirmResult;
 }
 
-export function App() {
+export interface AppProps {
+  /** Engine factory; tests pass a fake. Defaults to the bundled Stockfish worker. */
+  readonly createTransport?: () => EngineTransport;
+}
+
+export function App({ createTransport }: AppProps = {}) {
   const [position, setPosition] = useState<DraftPosition>(startingPosition);
   const [orientation, setOrientation] = useState<Color>('w');
   const [tool, setTool] = useState<Tool | null>(null);
@@ -32,6 +40,12 @@ export function App() {
   // Every edit produces a new draft object, so a confirmation only stays visible
   // while nothing has changed since it was computed.
   const result = confirmation?.draft === position ? confirmation.result : null;
+  // Only a current, successful confirmation is analyzed; any edit stops the search.
+  const confirmedPosition = result?.ok ? result.position : null;
+  const analysis = useAnalysis(
+    confirmedPosition,
+    createTransport ? { createTransport } : undefined,
+  );
   const highlightedSquares =
     result && !result.ok
       ? result.errors.flatMap((error) => ('squares' in error ? (error.squares ?? []) : []))
@@ -120,6 +134,14 @@ export function App() {
           setConfirmation({ draft: position, result: confirmPosition(position) });
         }}
       />
+      {confirmedPosition && (
+        <AnalysisPanel
+          position={confirmedPosition}
+          analysis={analysis}
+          targetDepth={ANALYSIS_DEPTH}
+          onRetry={analysis.retry}
+        />
+      )}
       <FenImport onLoad={replacePosition} />
       {drag && (
         <img

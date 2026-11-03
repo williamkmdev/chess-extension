@@ -98,10 +98,13 @@ export class Engine {
   private failure: Error | null = null;
   private terminated = false;
   private waiters: Waiter[] = [];
+  private readonly activityListeners = new Set<() => void>();
 
   private constructor(private readonly transport: EngineTransport) {
     transport.listen({
       line: (line) => {
+        if (this.failure) return;
+        for (const listener of this.activityListeners) listener();
         this.handleLine(line);
       },
       error: (error) => {
@@ -182,6 +185,18 @@ export class Engine {
           this.sendStop(search);
         }
       },
+    };
+  }
+
+  /**
+   * Calls `listener` whenever the engine produces any output, including progress lines
+   * that carry no analysis (e.g. `currmove`). Used to tell a slow search from a hung
+   * engine. Returns an unsubscribe function.
+   */
+  onActivity(listener: () => void): () => void {
+    this.activityListeners.add(listener);
+    return () => {
+      this.activityListeners.delete(listener);
     };
   }
 

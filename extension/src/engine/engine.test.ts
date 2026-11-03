@@ -1,56 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { confirmPosition } from '../shared/confirm';
-import { parseFen } from '../shared/fen';
-import type { ConfirmedPosition } from '../shared/position';
-import { Engine, EngineError, type AnalysisUpdate, type EngineTransport } from './engine';
-
-/** A scripted stand-in for the Stockfish worker. */
-class FakeTransport implements EngineTransport {
-  readonly sent: string[] = [];
-  terminated = false;
-  /** Replies to the handshake automatically unless turned off. */
-  autoHandshake = true;
-  private handlers?: Parameters<EngineTransport['listen']>[0];
-
-  send(command: string): void {
-    this.sent.push(command);
-    if (!this.autoHandshake) return;
-    if (command === 'uci') {
-      queueMicrotask(() => {
-        this.emit('id name Stockfish 19', 'uciok');
-      });
-    }
-    if (command === 'isready') {
-      queueMicrotask(() => {
-        this.emit('readyok');
-      });
-    }
-  }
-  listen(handlers: Parameters<EngineTransport['listen']>[0]): void {
-    this.handlers = handlers;
-  }
-  terminate(): void {
-    this.terminated = true;
-  }
-  emit(...lines: string[]): void {
-    for (const line of lines) this.handlers?.line(line);
-  }
-  crash(message: string): void {
-    this.handlers?.error(new Error(message));
-  }
-  /** Commands sent after the handshake. */
-  get searchCommands(): string[] {
-    return this.sent.filter((command) => command !== 'uci' && command !== 'isready');
-  }
-}
-
-function confirmed(fen: string): ConfirmedPosition {
-  const parsed = parseFen(fen);
-  if (!parsed.ok) throw new Error('bad FEN');
-  const result = confirmPosition(parsed.position);
-  if (!result.ok) throw new Error(JSON.stringify(result.errors));
-  return result.position;
-}
+import { Engine, EngineError, type AnalysisUpdate } from './engine';
+import { confirmed, FakeTransport } from './testing';
 
 const START = confirmed('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 const BLACK_TO_MOVE = confirmed('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1');
@@ -295,5 +245,19 @@ describe('failures and shutdown', () => {
     expect(await waiting.result).toBeNull();
     expect(() => engine.analyze(START, {})).toThrow(EngineError);
     engine.dispose();
+  });
+});
+
+describe('onActivity', () => {
+  it('fires for every line, including ones without analysis, until unsubscribed', async () => {
+    const { transport, engine } = await startEngine();
+    const listener = vi.fn();
+    const unsubscribe = engine.onActivity(listener);
+    engine.analyze(START, {});
+    transport.emit('info depth 20 currmove e2e4 currmovenumber 1', 'info string hello');
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    transport.emit('info depth 20 currmove d2d4 currmovenumber 2');
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 });
