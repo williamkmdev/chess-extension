@@ -12,3 +12,9 @@ h1 {
   font-size: 1.1rem;
   margin: 0 0 8px;
 }
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

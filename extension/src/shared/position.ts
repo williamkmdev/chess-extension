@@ -114,6 +114,12 @@ export function squareToCoords(square: Square): SquareCoords {
   };
 }
 
+/** a1 is a dark square; squares alternate color along files and ranks. */
+export function isDarkSquare(square: Square): boolean {
+  const { file, rank } = squareToCoords(square);
+  return (file + rank) % 2 === 0;
+}
+
 export function emptyBoard(): Board {
   return {};
 }

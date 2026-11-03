@@ -3,6 +3,9 @@ import { defineConfig } from 'vitest/config';
 // Chrome loads the extension straight from dist/. public/manifest.json is copied
 // as-is, so the paths it references must match the output names configured here.
 export default defineConfig({
+  oxc: {
+    jsx: { runtime: 'automatic', importSource: 'preact' },
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -20,6 +23,6 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['test/**/*.test.ts', 'src/**/*.test.{ts,tsx}'],
   },
 });
