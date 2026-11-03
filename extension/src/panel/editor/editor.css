@@ -49,3 +49,57 @@
   pointer-events: none;
   z-index: 10;
 }
+
+.details,
+.confirm,
+.fen-import {
+  max-width: 480px;
+  margin-top: 12px;
+}
+
+.details fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 4px;
+}
+
+.details input[type='number'] {
+  width: 5em;
+}
+
+.assumed,
+.required {
+  font-size: 0.75rem;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.assumed {
+  background: color-mix(in srgb, #f59e0b 25%, transparent);
+}
+
+.required {
+  background: color-mix(in srgb, #dc2626 25%, transparent);
+}
+
+.fen-import input[type='text'],
+.confirmed input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+}
+
+.errors {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #dc2626;
+}
+
+.status,
+.assumptions {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}

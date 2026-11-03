@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
-import { isSamePiece, movePiece, placePiece } from '../shared/editing';
+import { confirmPosition, type ConfirmResult } from '../shared/confirm';
+import { isSamePiece, movePiece, placePiece, withAssumedCastling } from '../shared/editing';
 import {
   emptyDraft,
   startingPosition,
@@ -10,17 +11,38 @@ import {
 } from '../shared/position';
 import { Board } from './board/Board';
 import { pieceImage } from './board/pieceImages';
+import { ConfirmPanel } from './editor/ConfirmPanel';
+import { FenImport } from './editor/FenImport';
 import { Palette, type Tool } from './editor/Palette';
+import { PositionDetails } from './editor/PositionDetails';
 import { useDragPiece } from './editor/useDragPiece';
+
+interface Confirmation {
+  /** The exact draft this result was computed for. */
+  readonly draft: DraftPosition;
+  readonly result: ConfirmResult;
+}
 
 export function App() {
   const [position, setPosition] = useState<DraftPosition>(startingPosition);
   const [orientation, setOrientation] = useState<Color>('w');
   const [tool, setTool] = useState<Tool | null>(null);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 
-  // Piece edits change only the board; metadata stays as the user left it.
+  // Every edit produces a new draft object, so a confirmation only stays visible
+  // while nothing has changed since it was computed.
+  const result = confirmation?.draft === position ? confirmation.result : null;
+  const highlightedSquares =
+    result && !result.ok
+      ? result.errors.flatMap((error) => ('squares' in error ? (error.squares ?? []) : []))
+      : [];
+
+  // Unstated castling rights follow the pieces (see withAssumedCastling).
+  const replacePosition = (next: DraftPosition) => {
+    setPosition(withAssumedCastling(next));
+  };
   const updateBoard = (edit: (board: BoardState) => BoardState) => {
-    setPosition((current) => ({ ...current, board: edit(current.board) }));
+    setPosition((current) => withAssumedCastling({ ...current, board: edit(current.board) }));
   };
 
   const applyTool = (square: Square) => {
@@ -50,6 +72,7 @@ export function App() {
         board={position.board}
         orientation={orientation}
         dragFrom={drag?.from ?? null}
+        highlightedSquares={highlightedSquares}
         onSquarePointerDown={(square, event) => {
           beginPress(event, { piece: position.board[square], square });
         }}
@@ -76,7 +99,7 @@ export function App() {
           type="button"
           onClick={() => {
             // A fresh setup: nothing about the old position's metadata carries over.
-            setPosition(emptyDraft());
+            replacePosition(emptyDraft());
           }}
         >
           Clear board
@@ -84,12 +107,20 @@ export function App() {
         <button
           type="button"
           onClick={() => {
-            setPosition(startingPosition());
+            replacePosition(startingPosition());
           }}
         >
           Starting position
         </button>
       </div>
+      <PositionDetails position={position} onChange={replacePosition} />
+      <ConfirmPanel
+        result={result}
+        onConfirm={() => {
+          setConfirmation({ draft: position, result: confirmPosition(position) });
+        }}
+      />
+      <FenImport onLoad={replacePosition} />
       {drag && (
         <img
           class="drag-ghost"

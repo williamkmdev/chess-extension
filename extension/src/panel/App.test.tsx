@@ -276,3 +276,129 @@ describe('drag and drop', () => {
     });
   });
 });
+
+function labeledInput(text: string): HTMLInputElement {
+  const label = [...container.querySelectorAll('label')].find((l) =>
+    l.textContent.trim().startsWith(text),
+  );
+  const el = label?.querySelector('input');
+  if (!el) throw new Error(`No input labeled '${text}'`);
+  return el;
+}
+
+async function loadFen(fen: string) {
+  const field = labeledInput('Load FEN');
+  await act(() => {
+    field.value = fen;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(() => {
+    field.form?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  });
+}
+
+const confirmedFen = () =>
+  container.querySelector<HTMLInputElement>('.confirmed input[readonly]')?.value ?? null;
+const errorTexts = (selector: string) =>
+  [...container.querySelectorAll(`${selector} .errors li`)].map((li) => li.textContent);
+const highlighted = () =>
+  [...container.querySelectorAll('.square.highlighted')].map((el) =>
+    el.getAttribute('data-square'),
+  );
+
+describe('confirm and copy', () => {
+  it('requires the side to move, then confirms and shows the FEN', async () => {
+    await loadFen('4k3/8/8/8/8/8/8/4K3');
+    await click(button('Confirm position'));
+    expect(errorTexts('.confirm')).toEqual(['Choose whose turn it is (White or Black).']);
+    expect(confirmedFen()).toBeNull();
+
+    await click(labeledInput('White'));
+    // The edit hides the stale result until the user confirms again.
+    expect(errorTexts('.confirm')).toEqual([]);
+    await click(button('Confirm position'));
+    expect(confirmedFen()).toBe('4k3/8/8/8/8/8/8/4K3 w - - 0 1');
+    expect(container.querySelector('.assumptions')?.textContent).toContain('en passant none');
+  });
+
+  it('lists validation errors and highlights their squares', async () => {
+    await loadFen('4k3/8/8/8/8/8/8/4R1K1 w - - 0 1');
+    await click(button('Confirm position'));
+    expect(errorTexts('.confirm')[0]).toContain("Black is in check but it's White's turn");
+    expect(highlighted().sort()).toEqual(['e1', 'e8']);
+    expect(confirmedFen()).toBeNull();
+  });
+
+  it('hides the confirmed FEN as soon as the board changes', async () => {
+    await click(button('Confirm position'));
+    expect(confirmedFen()).toBe('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    await dragTo(square('e2'), 'e4');
+    expect(confirmedFen()).toBeNull();
+  });
+
+  it('copies the confirmed FEN to the clipboard', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await click(button('Confirm position'));
+    await click(button('Copy'));
+    expect(writeText).toHaveBeenCalledWith(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    );
+    expect(container.querySelector('.status')?.textContent).toBe('Copied');
+  });
+
+  it('explains how to copy manually if the clipboard fails', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockRejectedValue(new Error('no'));
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await click(button('Confirm position'));
+    await click(button('Copy'));
+    expect(container.querySelector('.status')?.textContent).toContain('copy it manually');
+  });
+});
+
+describe('load FEN', () => {
+  it('replaces the draft with a valid FEN', async () => {
+    await loadFen('8/8/8/4k3/8/8/8/4K3 b - - 3 40');
+    expect(pieceCount()).toBe(2);
+    expect(labeledInput('Black').checked).toBe(true);
+    expect(labeledInput('Halfmove clock').value).toBe('3');
+  });
+
+  it('shows field errors and leaves the board alone for an invalid FEN', async () => {
+    await loadFen('rnbqkbnr/ppppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x');
+    expect(errorTexts('.fen-import')).toEqual([
+      'Pieces: Rank 7 describes 9 squares; expected 8.',
+      "Side to move: Side to move must be 'w' or 'b', got 'x'.",
+    ]);
+    expect(pieceCount()).toBe(32);
+  });
+});
+
+describe('assumed castling', () => {
+  const castlingBox = (label: string) => labeledInput(label);
+
+  it('follows the king and rook while unstated', async () => {
+    await click(button('Clear board'));
+    expect(castlingBox('White O-O').checked).toBe(false);
+    await click(button('white king'));
+    await tap('e1');
+    await click(button('white rook'));
+    await tap('h1');
+    expect(castlingBox('White O-O').checked).toBe(true);
+    expect(castlingBox('White O-O-O').checked).toBe(false);
+    expect(castlingBox('White O-O').parentElement?.textContent).toContain('assumed');
+
+    await dragTo(square('e1'), 'f1');
+    expect(castlingBox('White O-O').checked).toBe(false);
+  });
+
+  it('keeps a right the user set, even when the pieces move', async () => {
+    await click(button('Clear board'));
+    await click(castlingBox('Black O-O-O'));
+    expect(castlingBox('Black O-O-O').checked).toBe(true);
+    await click(button('white king'));
+    await tap('e1');
+    expect(castlingBox('Black O-O-O').checked).toBe(true);
+    expect(castlingBox('Black O-O-O').parentElement?.textContent).not.toContain('assumed');
+  });
+});
