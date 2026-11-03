@@ -44,6 +44,22 @@ export type CastlingRight = (typeof CASTLING_RIGHTS)[number];
  */
 export type CastlingRights = Readonly<Record<CastlingRight, MetadataField<boolean>>>;
 
+export interface CastlingHome {
+  readonly color: Color;
+  readonly side: 'kingside' | 'queenside';
+  /** Where the king must stand for this right to be possible. */
+  readonly king: Square;
+  /** Where the rook must stand for this right to be possible. */
+  readonly rook: Square;
+}
+
+export const CASTLING_HOME: Readonly<Record<CastlingRight, CastlingHome>> = {
+  whiteKingside: { color: 'w', side: 'kingside', king: 'e1', rook: 'h1' },
+  whiteQueenside: { color: 'w', side: 'queenside', king: 'e1', rook: 'a1' },
+  blackKingside: { color: 'b', side: 'kingside', king: 'e8', rook: 'h8' },
+  blackQueenside: { color: 'b', side: 'queenside', king: 'e8', rook: 'a8' },
+};
+
 /**
  * An editable, possibly incomplete or illegal position. Side to move has no sensible
  * default, so it stays `'unknown'` until stated. A draft must be confirmed before it

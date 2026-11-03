@@ -16,9 +16,17 @@ export interface BoardProps {
   readonly onSquarePointerDown?: (square: Square, event: PointerEvent) => void;
   /** Square whose piece is currently being dragged; shown dimmed. */
   readonly dragFrom?: Square | null;
+  /** Squares to mark, e.g. the ones a validation error refers to. */
+  readonly highlightedSquares?: readonly Square[];
 }
 
-export function Board({ board, orientation, onSquarePointerDown, dragFrom }: BoardProps) {
+export function Board({
+  board,
+  orientation,
+  onSquarePointerDown,
+  dragFrom,
+  highlightedSquares = [],
+}: BoardProps) {
   const rows = displayRows(orientation);
   return (
     <div class="board" role="grid" aria-label="Chess board">
@@ -30,7 +38,9 @@ export function Board({ board, orientation, onSquarePointerDown, dragFrom }: Boa
               <div
                 key={square}
                 role="gridcell"
-                class={`square ${isDarkSquare(square) ? 'dark' : 'light'}`}
+                class={`square ${isDarkSquare(square) ? 'dark' : 'light'}${
+                  highlightedSquares.includes(square) ? ' highlighted' : ''
+                }`}
                 data-square={square}
                 aria-label={piece ? `${square}, ${pieceName(piece)}` : `${square}, empty`}
                 onPointerDown={(event) => {

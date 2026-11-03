@@ -3,6 +3,7 @@
 
 import { Chess } from 'chess.js';
 import {
+  CASTLING_HOME,
   isDarkSquare,
   isSquare,
   type Board,
@@ -201,24 +202,10 @@ function checkChecks(
   return [];
 }
 
-interface CastlingRequirement {
-  readonly color: Color;
-  readonly side: 'kingside' | 'queenside';
-  readonly king: Square;
-  readonly rook: Square;
-}
-
-const CASTLING_REQUIREMENTS: Readonly<Record<CastlingRight, CastlingRequirement>> = {
-  whiteKingside: { color: 'w', side: 'kingside', king: 'e1', rook: 'h1' },
-  whiteQueenside: { color: 'w', side: 'queenside', king: 'e1', rook: 'a1' },
-  blackKingside: { color: 'b', side: 'kingside', king: 'e8', rook: 'h8' },
-  blackQueenside: { color: 'b', side: 'queenside', king: 'e8', rook: 'a8' },
-};
-
 /** Placement can disprove a castling right but never prove it. */
 function checkCastling(position: DraftPosition): PositionError[] {
   const errors: PositionError[] = [];
-  for (const [right, requirement] of Object.entries(CASTLING_REQUIREMENTS)) {
+  for (const [right, requirement] of Object.entries(CASTLING_HOME)) {
     if (!position.castling[right as CastlingRight].value) continue;
     const { color, side, king, rook } = requirement;
     const name = COLOR_NAME[color];
