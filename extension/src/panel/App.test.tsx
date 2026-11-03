@@ -2,18 +2,32 @@
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FakeTransport } from '../engine/testing';
 import { App } from './App';
 
 const container = document.createElement('div');
+/** The fake engines the app created, in order (Retry creates a new one). */
+let engines: FakeTransport[] = [];
 
 beforeEach(async () => {
+  engines = [];
   document.body.append(container);
   await act(() => {
-    render(<App />, container);
+    render(
+      <App
+        createTransport={() => {
+          const transport = new FakeTransport();
+          engines.push(transport);
+          return transport;
+        }}
+      />,
+      container,
+    );
   });
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   render(null, container);
   container.remove();
@@ -400,5 +414,191 @@ describe('assumed castling', () => {
     await tap('e1');
     expect(castlingBox('Black O-O-O').checked).toBe(true);
     expect(castlingBox('Black O-O-O').parentElement?.textContent).not.toContain('assumed');
+  });
+});
+
+describe('engine analysis', () => {
+  const engine = (index = 0) => {
+    const found = engines[index];
+    if (!found) throw new Error(`Engine ${String(index)} was not created`);
+    return found;
+  };
+  const analysisText = () => container.querySelector('.analysis')?.textContent ?? null;
+  /** Let the fake engine's handshake (microtasks) and the resulting renders finish. */
+  const settle = async () => {
+    await act(async () => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    });
+  };
+  async function emit(...lines: string[]) {
+    await act(() => {
+      engine(engines.length - 1).emit(...lines);
+    });
+    await settle();
+  }
+
+  it('does not start the engine until a position is confirmed', () => {
+    expect(engines).toHaveLength(0);
+    expect(analysisText()).toBeNull();
+  });
+
+  it('analyzes the confirmed position and shows evaluation, depth and line', async () => {
+    await click(button('Confirm position'));
+    await settle();
+    expect(engine().searchCommands).toEqual([
+      'position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      'go depth 20',
+    ]);
+    expect(analysisText()).toContain('Analyzing…');
+
+    await emit('info depth 12 multipv 1 score cp 31 nodes 9000 time 80 pv e2e4 e7e5 g1f3 b8c6');
+    expect(analysisText()).toContain('+0.31');
+    expect(analysisText()).toContain('White’s perspective');
+    expect(analysisText()).toContain('Depth 12/20');
+    expect(analysisText()).toContain('1. e4 e5 2. Nf3 Nc6');
+
+    await emit('info depth 20 score cp 28 pv d2d4 d7d5', 'bestmove d2d4');
+    expect(analysisText()).toContain('+0.28');
+    expect(analysisText()).toContain('Depth 20/20 · done');
+  });
+
+  it("shows mates and Black-to-move scores from White's perspective", async () => {
+    await loadFen('rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2');
+    await click(button('Confirm position'));
+    await settle();
+    await emit('info depth 4 score mate 1 pv d8h4');
+    expect(analysisText()).toContain('Mate in 1 for Black');
+    expect(analysisText()).toContain('2... Qh4#');
+  });
+
+  it('stops the search and clears the analysis as soon as the position is edited', async () => {
+    await click(button('Confirm position'));
+    await settle();
+    await emit('info depth 5 score cp 20 pv e2e4');
+    await click(labeledInput('Black'));
+    expect(analysisText()).toBeNull();
+    expect(engine().searchCommands.at(-1)).toBe('stop');
+
+    // Output from the stopped search never shows up later.
+    await emit('info depth 6 score cp 99 pv d2d4', 'bestmove d2d4');
+    expect(analysisText()).toBeNull();
+  });
+
+  it('reuses the running engine for the next confirmation', async () => {
+    await click(button('Confirm position'));
+    await settle();
+    await emit('bestmove e2e4');
+    await dragTo(square('e2'), 'e4');
+    await click(labeledInput('Black'));
+    await click(button('Confirm position'));
+    await settle();
+    expect(engines).toHaveLength(1);
+    expect(engine().searchCommands.at(-1)).toBe('go depth 20');
+  });
+
+  it('shows checkmate and stalemate without asking the engine', async () => {
+    await loadFen('7k/6Q1/6K1/8/8/8/8/8 b - - 0 1');
+    await click(button('Confirm position'));
+    await settle();
+    expect(analysisText()).toContain('Checkmate: White wins');
+    await loadFen('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1');
+    await click(button('Confirm position'));
+    await settle();
+    expect(analysisText()).toContain('Stalemate');
+    expect(engines).toHaveLength(0);
+  });
+
+  it('reports a failed engine and starts a fresh one on Retry', async () => {
+    await click(button('Confirm position'));
+    await act(() => {
+      engine().crash('The engine failed to load.');
+    });
+    await settle();
+    expect(analysisText()).toContain('Engine unavailable: The engine failed to load.');
+    expect(engine().terminated).toBe(true);
+
+    await click(button('Retry'));
+    await settle();
+    expect(engines).toHaveLength(2);
+    expect(engine(1).searchCommands.at(-1)).toBe('go depth 20');
+    await emit('info depth 3 score cp 10 pv e2e4');
+    expect(analysisText()).toContain('+0.10');
+  });
+
+  it('treats an engine that goes completely silent mid-search as hung', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await click(button('Confirm position'));
+    await settle();
+    await emit('info depth 5 score cp 20 pv e2e4');
+    await act(() => {
+      vi.advanceTimersByTime(29_000);
+    });
+    expect(analysisText()).toContain('+0.20');
+    await act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(analysisText()).toContain('Engine unavailable: The engine stopped responding.');
+    expect(engine().terminated).toBe(true);
+  });
+
+  it('keeps a slow search alive while the engine reports progress', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await click(button('Confirm position'));
+    await settle();
+    await emit('info depth 18 score cp 25 pv e2e4');
+    // A long iteration: no new depth for 80 s, only progress lines.
+    for (let i = 0; i < 4; i += 1) {
+      await act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+      await emit('info depth 19 currmove g1f3 currmovenumber 3');
+    }
+    expect(analysisText()).toContain('Depth 18/20');
+    expect(engine().terminated).toBe(false);
+    await emit('info depth 19 score cp 27 pv e2e4 e7e5');
+    expect(analysisText()).toContain('Depth 19/20');
+  });
+
+  it('reports an engine that died while idle as soon as it is next used', async () => {
+    await click(button('Confirm position'));
+    await settle();
+    await emit('bestmove e2e4');
+    await act(() => {
+      engine().crash('Worker crashed.');
+    });
+    await click(labeledInput('Black'));
+    await click(button('Confirm position'));
+    await settle();
+    expect(analysisText()).toContain('Engine unavailable: Worker crashed.');
+  });
+
+  it('reports a worker that cannot even be created', async () => {
+    await act(() => {
+      render(null, container);
+    });
+    await act(() => {
+      render(
+        <App
+          createTransport={() => {
+            throw new Error('Workers are not available.');
+          }}
+        />,
+        container,
+      );
+    });
+    await click(button('Confirm position'));
+    await settle();
+    expect(analysisText()).toContain('Engine unavailable: Workers are not available.');
+  });
+
+  it('shuts the engine down when the panel closes', async () => {
+    await click(button('Confirm position'));
+    await settle();
+    await act(() => {
+      render(null, container);
+    });
+    await settle();
+    expect(engine().sent.at(-1)).toBe('quit');
+    expect(engine().terminated).toBe(true);
   });
 });

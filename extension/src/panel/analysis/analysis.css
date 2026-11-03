@@ -1,0 +1,36 @@
+.analysis {
+  max-width: 480px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 4px;
+}
+
+.analysis h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.analysis p {
+  margin: 4px 0;
+}
+
+.analysis-eval strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-note,
+.analysis-status {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.analysis-line {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+.analysis-error {
+  color: #dc2626;
+}
