@@ -3,8 +3,8 @@
 
 import { Chess } from 'chess.js';
 import {
+  isDarkSquare,
   isSquare,
-  squareToCoords,
   type Board,
   type CastlingRight,
   type Color,
@@ -106,12 +106,6 @@ function checkBackRankPawns(pieces: readonly PlacedPiece[]): PositionError[] {
 }
 
 const STARTING_COUNT: Readonly<Record<'q' | 'r' | 'n', number>> = { q: 1, r: 2, n: 2 };
-
-/** a1 is a dark square; squares alternate color along files and ranks. */
-function isDarkSquare(square: Square): boolean {
-  const { file, rank } = squareToCoords(square);
-  return (file + rank) % 2 === 0;
-}
 
 function checkPieceCounts(pieces: readonly PlacedPiece[]): PositionError[] {
   const errors: PositionError[] = [];

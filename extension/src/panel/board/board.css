@@ -1,0 +1,61 @@
+.board {
+  --light: #f0d9b5;
+  --dark: #b58863;
+  display: grid;
+  grid-template-rows: repeat(8, 1fr);
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1;
+  user-select: none;
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+}
+
+.square {
+  position: relative;
+}
+
+.square.light {
+  background: var(--light);
+}
+
+.square.dark {
+  background: var(--dark);
+}
+
+.piece {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.coord {
+  position: absolute;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.coord.rank {
+  top: 2px;
+  left: 2px;
+}
+
+.coord.file {
+  right: 2px;
+  bottom: 2px;
+}
+
+/* Coordinates take the opposite square color so they stay readable. */
+.square.light .coord {
+  color: var(--dark);
+}
+
+.square.dark .coord {
+  color: var(--light);
+}
