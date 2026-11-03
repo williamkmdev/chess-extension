@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPosition } from './confirm';
+import { parseFen, toFen, type FenField } from './fen';
 import {
-  hasKnownSideToMove,
-  parseFen,
-  toFen,
-  type FenField,
-  type FenSerializablePosition,
-} from './fen';
-import { CASTLING_RIGHTS, emptyDraft, startingPosition, type DraftPosition } from './position';
+  CASTLING_RIGHTS,
+  emptyDraft,
+  startingPosition,
+  type ConfirmedPosition,
+  type DraftPosition,
+} from './position';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -18,9 +19,10 @@ function parsed(fen: string): DraftPosition {
   return result.position;
 }
 
-function serializable(position: DraftPosition): FenSerializablePosition {
-  if (!hasKnownSideToMove(position)) throw new Error('Side to move is unknown');
-  return position;
+function confirmed(position: DraftPosition): ConfirmedPosition {
+  const result = confirmPosition(position);
+  if (!result.ok) throw new Error(`Expected to confirm: ${JSON.stringify(result.errors)}`);
+  return result.position;
 }
 
 function errorsFor(fen: string) {
@@ -209,7 +211,7 @@ describe('parseFen: rejections', () => {
 
 describe('toFen', () => {
   it('serializes the starting position', () => {
-    expect(toFen(serializable(startingPosition()))).toBe(START_FEN);
+    expect(toFen(confirmed(startingPosition()))).toBe(START_FEN);
   });
 
   it.each([
@@ -218,29 +220,28 @@ describe('toFen', () => {
     'rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3',
     'r3k2r/8/8/8/8/8/8/R3K2R w Kq - 5 20',
     'r3k2r/8/8/8/8/8/8/R3K2R b Qk - 0 1',
-    '8/8/8/8/8/8/8/8 w - - 0 1',
+    '4k3/8/8/8/8/8/8/4K3 w - - 0 1',
     '8/5k2/8/8/8/8/1K6/8 b - - 99 250',
     '7K/8/8/8/8/8/8/k7 w - - 4000 9999999',
   ])('round-trips %s', (fen) => {
-    expect(toFen(serializable(parsed(fen)))).toBe(fen);
+    expect(toFen(confirmed(parsed(fen)))).toBe(fen);
   });
 
   it('writes castling in canonical KQkq order', () => {
     const position = parsed('r3k2r/8/8/8/8/8/8/R3K2R w qkQK - 0 1');
-    expect(toFen(serializable(position))).toBe('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1');
+    expect(toFen(confirmed(position))).toBe('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1');
   });
 
   it('writes defaults for omitted fields once the side to move is known', () => {
-    expect(toFen(serializable(parsed('4k3/8/8/8/8/8/8/4K3 w')))).toBe(
-      '4k3/8/8/8/8/8/8/4K3 w - - 0 1',
-    );
+    expect(toFen(confirmed(parsed('4k3/8/8/8/8/8/8/4K3 w')))).toBe('4k3/8/8/8/8/8/8/4K3 w - - 0 1');
   });
 
-  it('requires a known side to move at compile time', () => {
-    const draft = parsed('4k3/8/8/8/8/8/8/4K3');
-    expect(hasKnownSideToMove(draft)).toBe(false);
+  it('accepts only confirmed positions at compile time', () => {
+    // Even a legal draft with a known side to move must go through confirmPosition.
+    const draft = parsed('4k3/8/8/8/8/8/8/4K3 w - - 0 1');
+    expect(draft.sideToMove).toBe('w');
     // Never called: this only checks that the type system rejects the call.
-    // @ts-expect-error A draft whose side to move may be unknown cannot be serialized.
+    // @ts-expect-error A plain DraftPosition cannot be serialized.
     const serializeUnchecked = () => toFen(draft);
     expect(serializeUnchecked).toBeTypeOf('function');
   });
