@@ -18,6 +18,14 @@ describe('manifest', () => {
     expect(manifest).not.toHaveProperty('host_permissions');
   });
 
+  it('allows WebAssembly for the bundled engine and nothing more', () => {
+    // MV3's default policy disables WebAssembly; this is Chrome's minimum policy plus
+    // 'wasm-unsafe-eval', which the Stockfish worker needs. No remote or eval'd scripts.
+    expect(manifest.content_security_policy).toEqual({
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+    });
+  });
+
   it('points the side panel at a source page that exists', () => {
     // The built page keeps its source-relative path, so this also keeps dist/ consistent.
     expect(exists(manifest.side_panel.default_path)).toBe(true);
