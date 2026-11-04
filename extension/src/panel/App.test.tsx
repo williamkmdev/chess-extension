@@ -625,7 +625,10 @@ describe('engine analysis', () => {
     if (!found) throw new Error(`Engine ${String(index)} was not created`);
     return found;
   };
-  const analysisText = () => container.querySelector('.analysis')?.textContent ?? null;
+  const analysisText = () =>
+    container.querySelector('[aria-label="Engine analysis"]')?.textContent ?? null;
+  const comparisonText = () =>
+    container.querySelector('[aria-label="Compared with Stockfish"]')?.textContent ?? null;
   /** Let the fake engine's handshake (microtasks) and the resulting renders finish. */
   const settle = async () => {
     await act(async () => {
@@ -708,6 +711,95 @@ describe('engine analysis', () => {
     await settle();
     expect(analysisText()).not.toContain('1... e5');
     expect(engines).toHaveLength(1);
+  });
+
+  describe('comparing a move with Stockfish’s choice', () => {
+    const START_SEARCH = 'position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const searchesOf = (command: string) =>
+      engine().searchCommands.filter((sent) => sent === command).length;
+
+    async function confirmStartAndFinish(bestLine = 'e2e4 e7e5') {
+      await click(button('Confirm position'));
+      await settle();
+      await emit(`info depth 20 score cp 35 pv ${bestLine}`, `bestmove ${bestLine.slice(0, 4)}`);
+    }
+
+    it('compares once both positions are searched, reusing a finished search', async () => {
+      await confirmStartAndFinish();
+      await dragTo(square('a2'), 'a3');
+      await settle();
+      expect(comparisonText()).toContain('analyzing the position after your move');
+
+      // Black to move: −10 for Black is +0.10 for White.
+      await emit('info depth 20 score cp -10 pv e7e5', 'bestmove e7e5');
+      const text = comparisonText() ?? '';
+      expect(text).toContain('Your move: 1. a3 +0.10');
+      expect(text).toContain('Stockfish’s choice: 1. e4 +0.35');
+      expect(text).toContain('a3 is 0.25 pawns worse for White than Stockfish’s choice.');
+      // The starting position had been searched to the end, so it isn't searched again.
+      expect(searchesOf(START_SEARCH)).toBe(1);
+    });
+
+    it('searches the position before the move afterwards if its search was cut short', async () => {
+      await click(button('Confirm position'));
+      await settle();
+      await emit('info depth 8 score cp 30 pv e2e4');
+      await dragTo(square('a2'), 'a3');
+      await settle();
+      // The interrupted search ends; the position after the move comes first.
+      await emit('bestmove e2e4');
+      await emit('info depth 20 score cp -5 pv e7e5', 'bestmove e7e5');
+      expect(comparisonText()).toContain('analyzing the position before your move');
+      expect(engine().searchCommands.slice(-2)).toEqual([START_SEARCH, 'go depth 20']);
+
+      await emit('info depth 20 score cp 40 pv e2e4 e7e5', 'bestmove e2e4');
+      expect(comparisonText()).toContain('a3 is 0.35 pawns worse for White');
+      // The panel's own analysis still shows the position on the board.
+      expect(analysisText()).toContain('+0.05');
+      expect(analysisText()).not.toContain('+0.40');
+    });
+
+    it('recognizes Stockfish’s own choice', async () => {
+      await confirmStartAndFinish();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await emit('info depth 20 score cp -30 pv e7e5', 'bestmove e7e5');
+      expect(comparisonText()).toContain('e4 is Stockfish’s choice.');
+    });
+
+    it('shows no comparison at the start, and reuses finished searches going back', async () => {
+      await confirmStartAndFinish();
+      await dragTo(square('a2'), 'a3');
+      await settle();
+      await emit('info depth 20 score cp -10 pv e7e5', 'bestmove e7e5');
+      const sent = engine().searchCommands.length;
+
+      await click(button('Back'));
+      await settle();
+      expect(comparisonText()).toBeNull();
+      expect(analysisText()).toContain('+0.35');
+      expect(analysisText()).toContain('done');
+      expect(engine().searchCommands).toHaveLength(sent);
+    });
+
+    it('describes mates from the mover’s side, including a move that mates', async () => {
+      await loadFen('rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2');
+      await click(button('Confirm position'));
+      await settle();
+      await emit('info depth 20 score mate 1 pv d8h4', 'bestmove d8h4');
+
+      await dragTo(square('b8'), 'c6');
+      await settle();
+      await emit('info depth 20 score cp 150 pv a2a3', 'bestmove a2a3');
+      expect(comparisonText()).toContain('Stockfish’s choice: 2... Qh4# Mate in 1 for Black');
+      expect(comparisonText()).toContain('Nc6 misses mate in 1.');
+
+      await click(button('Back'));
+      await dragTo(square('d8'), 'h4');
+      await settle();
+      expect(comparisonText()).toContain('Your move: 2... Qh4# Checkmate: Black wins');
+      expect(comparisonText()).toContain('Qh4# is Stockfish’s choice.');
+    });
   });
 
   it('reuses the running engine for the next confirmation', async () => {

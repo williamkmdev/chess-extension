@@ -59,3 +59,7 @@
   margin: 8px 0 0;
   font-size: 0.9rem;
 }
+
+.comparison-verdict {
+  font-weight: 600;
+}
