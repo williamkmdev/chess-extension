@@ -15,6 +15,13 @@ h1 {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+.toolbar-option {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
 }

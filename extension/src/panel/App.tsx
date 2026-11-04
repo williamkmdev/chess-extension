@@ -17,6 +17,7 @@ import { MoveList } from './analysis/MoveList';
 import { PromotionPicker } from './analysis/PromotionPicker';
 import { ANALYSIS_DEPTH, useAnalysis } from './analysis/useAnalysis';
 import { useExplorer } from './analysis/useExplorer';
+import { usePlayVsEngine, type PlayStatus } from './analysis/usePlayVsEngine';
 import { Board } from './board/Board';
 import { pieceImage } from './board/pieceImages';
 import { useDragPiece } from './board/useDragPiece';
@@ -38,6 +39,16 @@ export interface AppProps {
 
 const COLOR_NAMES: Readonly<Record<Color, string>> = { w: 'White', b: 'Black' };
 
+/** The line under the board: whose turn it is, or how the game against Stockfish stands. */
+function turnText(sideToMove: Color, playing: Color | null, status: PlayStatus, over: boolean) {
+  if (playing === null) return `${COLOR_NAMES[sideToMove]} to move`;
+  const you = `You play ${COLOR_NAMES[playing]}`;
+  if (over) return `${you} · Game over`;
+  if (status === 'your-move') return `${you} · Your move`;
+  if (status === 'thinking') return `${you} · Stockfish is thinking…`;
+  return `${you} · Stockfish’s turn (its move is already in this line)`;
+}
+
 /**
  * Two modes. Set up: edit the draft and confirm it. Explore: a confirmed position on the
  * board, where only legal moves can be played and the engine analyzes the position shown.
@@ -47,6 +58,8 @@ export function App({ createTransport }: AppProps = {}) {
   const [orientation, setOrientation] = useState<Color>('w');
   const [tool, setTool] = useState<Tool | null>(null);
   const [failure, setFailure] = useState<FailedConfirmation | null>(null);
+  /** Play vs Stockfish: Stockfish takes the side to move (so it moves first). */
+  const [stockfishFirst, setStockfishFirst] = useState(false);
   const explorer = useExplorer();
   /** The position being explored; null while setting up. */
   const exploring = explorer.position;
@@ -98,6 +111,16 @@ export function App({ createTransport }: AppProps = {}) {
         return target ? placePiece(board, target, piece) : board;
       });
     },
+  });
+
+  // Playing against Stockfish: it answers at the end of a line when it's its turn.
+  const playStatus = usePlayVsEngine({
+    playing: explorer.playing,
+    position: exploring,
+    current: explorer.current,
+    atLineEnd: explorer.atLineEnd,
+    completed: analysis.completed,
+    playEngineMove: explorer.playEngineMove,
   });
 
   // Arrow keys step through the moves while exploring; Home and End jump to the ends.
@@ -168,7 +191,9 @@ export function App({ createTransport }: AppProps = {}) {
               onCancel={explorer.cancelPromotion}
             />
           )}
-          <p class="turn">{COLOR_NAMES[exploring.sideToMove]} to move</p>
+          <p class="turn">
+            {turnText(exploring.sideToMove, explorer.playing, playStatus, explorer.gameOver)}
+          </p>
           <div class="toolbar">
             <button type="button" disabled={!explorer.canGoBack} onClick={explorer.back}>
               Back
@@ -177,6 +202,32 @@ export function App({ createTransport }: AppProps = {}) {
               Forward
             </button>
             {flipButton}
+            {explorer.playing === null ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    explorer.startPlaying(stockfishFirst);
+                  }}
+                >
+                  Play vs Stockfish
+                </button>
+                <label class="toolbar-option">
+                  <input
+                    type="checkbox"
+                    checked={stockfishFirst}
+                    onChange={(event) => {
+                      setStockfishFirst(event.currentTarget.checked);
+                    }}
+                  />{' '}
+                  Stockfish moves first
+                </label>
+              </>
+            ) : (
+              <button type="button" onClick={explorer.stopPlaying}>
+                Stop playing
+              </button>
+            )}
             <button type="button" onClick={explorer.exit}>
               Edit position
             </button>
