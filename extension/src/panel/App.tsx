@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { EngineTransport } from '../engine/engine';
 import { confirmPosition, type ConfirmationError } from '../shared/confirm';
 import { isSamePiece, movePiece, placePiece, withAssumedCastling } from '../shared/editing';
@@ -99,6 +99,33 @@ export function App({ createTransport }: AppProps = {}) {
     },
   });
 
+  // Arrow keys step through the moves while exploring.
+  const keys = useRef({ exploring: false, explorer });
+  keys.current = { exploring: exploring !== null, explorer };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const { exploring: active, explorer: current } = keys.current;
+      if (!active || current.promotion) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      // Arrow keys move the caret while typing in a field.
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      ) {
+        return;
+      }
+      if (event.key === 'ArrowLeft') current.back();
+      else if (event.key === 'ArrowRight') current.forward();
+      else return;
+      event.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
   const targetsFrom = (from: Square | null) =>
     from ? (explorer.moves.get(from) ?? []).map((target) => target.to) : [];
 
@@ -168,6 +195,7 @@ export function App({ createTransport }: AppProps = {}) {
             analysis={analysis}
             targetDepth={ANALYSIS_DEPTH}
             onRetry={analysis.retry}
+            onPlayLine={explorer.playLine}
           />
         </>
       ) : (

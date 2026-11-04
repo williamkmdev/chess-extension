@@ -149,6 +149,30 @@ function positionAfterMove(before: ConfirmedPosition, fen: string): ConfirmedPos
   return confirmed.position;
 }
 
+export interface LineResult {
+  readonly tree: MoveTree;
+  /** The node reached by each move of the line, in order; shorter if a move was illegal. */
+  readonly ids: readonly NodeId[];
+}
+
+/**
+ * Plays a sequence of moves from node `from`, each from the position the previous one
+ * reached. Moves already explored are reused. Stops at the first move that isn't legal.
+ */
+export function playLine(tree: MoveTree, from: NodeId, moves: readonly string[]): LineResult {
+  let current = tree;
+  let at = from;
+  const ids: NodeId[] = [];
+  for (const move of moves) {
+    const result = playMove(current, at, move);
+    if (!result) break;
+    current = result.tree;
+    at = result.id;
+    ids.push(at);
+  }
+  return { tree: current, ids };
+}
+
 /** Node ids from the root down to `id`, both included. */
 export function pathTo(tree: MoveTree, id: NodeId): NodeId[] {
   const path: NodeId[] = [];

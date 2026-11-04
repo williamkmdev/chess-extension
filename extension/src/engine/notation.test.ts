@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatEvaluation, gameOver, pvToSan } from './notation';
+import { formatEvaluation, gameOver, pvMoves, pvToSan } from './notation';
 import { confirmed } from './testing';
 import type { Evaluation } from './uci';
 
@@ -40,6 +40,25 @@ describe('formatEvaluation', () => {
     expect(formatEvaluation(mate('w', 3))).toBe('Mate in 3 for White');
     expect(formatEvaluation(mate('b', 1))).toBe('Mate in 1 for Black');
     expect(formatEvaluation(mate('b', 0))).toBe('Checkmate: Black wins');
+  });
+});
+
+describe('pvMoves', () => {
+  it('numbers White moves, and a first Black move with an ellipsis', () => {
+    const start = confirmed('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    expect(pvMoves(start, ['e2e4', 'e7e5', 'g1f3'])).toEqual([
+      { uci: 'e2e4', label: '1. e4' },
+      { uci: 'e7e5', label: 'e5' },
+      { uci: 'g1f3', label: '2. Nf3' },
+    ]);
+    const black = confirmed('rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2');
+    expect(pvMoves(black, ['d8h4'])).toEqual([{ uci: 'd8h4', label: '2... Qh4#' }]);
+  });
+
+  it('stops at the first illegal move and at maxPlies', () => {
+    const start = confirmed('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    expect(pvMoves(start, ['e2e4', 'e2e4', 'g1f3']).map((move) => move.uci)).toEqual(['e2e4']);
+    expect(pvMoves(start, ['e2e4', 'e7e5', 'g1f3'], 2)).toHaveLength(2);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   getNode,
   mainLine,
   pathTo,
+  playLine,
   playMove,
   stepBack,
   stepForward,
@@ -234,6 +235,36 @@ describe('metadata labels after a move', () => {
       halfmoveClock: 'provided',
       fullmoveNumber: 'provided',
     });
+  });
+});
+
+describe('playLine', () => {
+  it('adds a line of moves and returns the node of each', () => {
+    const tree = createTree(confirmed(START));
+    const { tree: next, ids } = playLine(tree, tree.root, ['e2e4', 'e7e5', 'g1f3']);
+    expect(ids).toHaveLength(3);
+    expect(pathTo(next, ids[2] ?? -1)).toEqual([next.root, ...ids]);
+    expect(getNode(next, ids[2] ?? -1).move?.san).toBe('Nf3');
+  });
+
+  it('reuses explored moves, and is the main line only where there was none', () => {
+    // 1. e4 c5 explored first; then the line 1. e4 e5 2. Nf3.
+    const explored = play(createTree(confirmed(START)), 0, 'e2e4', 'c7c5');
+    const [, e4 = -1, c5 = -1] = pathTo(explored.tree, explored.id);
+    const { tree, ids } = playLine(explored.tree, explored.tree.root, ['e2e4', 'e7e5', 'g1f3']);
+    expect(ids[0]).toBe(e4);
+    expect(getNode(tree, e4).children).toEqual([c5, ids[1]]);
+    expect(mainLine(tree, tree.root)).toEqual([e4, c5]);
+    // After 1... e5 there was no continuation, so the line's 2. Nf3 is the main one.
+    expect(stepForward(tree, ids[1] ?? -1)).toBe(ids[2]);
+  });
+
+  it('stops at the first illegal move', () => {
+    const tree = createTree(confirmed(START));
+    const { tree: next, ids } = playLine(tree, tree.root, ['e2e4', 'e2e4', 'g1f3']);
+    expect(ids).toHaveLength(1);
+    expect(next.nodes.size).toBe(2);
+    expect(playLine(tree, tree.root, ['e7e5'])).toEqual({ tree, ids: [] });
   });
 });
 

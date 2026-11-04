@@ -604,6 +604,40 @@ describe('exploring moves', () => {
     expect(confirmedFen()).toBe(AFTER_E5);
   });
 
+  async function press(key: string, target: EventTarget = window, init: KeyboardEventInit = {}) {
+    await act(() => {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init }));
+    });
+  }
+
+  it('steps back and forward with the arrow keys', async () => {
+    await explore();
+    await dragTo(square('e2'), 'e4');
+    await press('ArrowLeft');
+    expect(confirmedFen()).toBe(START_FEN);
+    await press('ArrowRight');
+    expect(confirmedFen()).toBe(AFTER_E4);
+  });
+
+  it('leaves the arrow keys alone while typing, with modifiers, or choosing a promotion', async () => {
+    await explore();
+    await dragTo(square('e2'), 'e4');
+    const fenField = container.querySelector<HTMLInputElement>('.confirmed input');
+    if (!fenField) throw new Error('No FEN field');
+    await press('ArrowLeft', fenField);
+    await press('ArrowLeft', window, { shiftKey: true });
+    expect(confirmedFen()).toBe(AFTER_E4);
+
+    await click(button('Edit position'));
+    await explore('4k3/P7/8/8/8/8/8/4K3 w - - 0 1');
+    await dragTo(square('e1'), 'd1');
+    await dragTo(square('e8'), 'd8');
+    await dragTo(square('a7'), 'a8');
+    await press('ArrowLeft');
+    expect(picker()).not.toBeNull();
+    expect(label('a8')).toBe('a8, white pawn');
+  });
+
   it('allows no moves in a finished game', async () => {
     await explore('7k/6Q1/6K1/8/8/8/8/8 b - - 0 1');
     await tap('h8');
@@ -799,6 +833,53 @@ describe('engine analysis', () => {
       await settle();
       expect(comparisonText()).toContain('Your move: 2... Qh4# Checkmate: Black wins');
       expect(comparisonText()).toContain('Qh4# is Stockfish’s choice.');
+    });
+  });
+
+  describe('stepping through the engine line', () => {
+    const AFTER_NF3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2';
+    const AFTER_NC6 = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
+
+    it('puts the board on a clicked move, then steps through the rest', async () => {
+      await click(button('Confirm position'));
+      await settle();
+      await emit('info depth 10 score cp 30 pv e2e4 e7e5 g1f3 b8c6');
+      await click(button('Play 2. Nf3'));
+      expect(confirmedFen()).toBe(AFTER_NF3);
+
+      await click(button('Forward'));
+      expect(confirmedFen()).toBe(AFTER_NC6);
+      expect(button('Forward').disabled).toBe(true);
+      await click(button('Back'));
+      await click(button('Back'));
+      await click(button('Back'));
+      expect(confirmedFen()).toBe('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1');
+    });
+
+    it("plays Stockfish's reply to your move", async () => {
+      await click(button('Confirm position'));
+      await settle();
+      await emit('bestmove e2e4');
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await emit('info depth 10 score cp -30 pv e7e5 g1f3');
+      await click(button('Play 1... e5'));
+      expect(confirmedFen()).toBe('rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2');
+    });
+
+    it('keeps the existing main line for Forward when the engine line branches off', async () => {
+      await click(button('Confirm position'));
+      await settle();
+      await dragTo(square('e2'), 'e4');
+      await dragTo(square('c7'), 'c5');
+      await click(button('Back'));
+      await click(button('Back'));
+      // The first search ends; the starting position is searched again.
+      await emit('bestmove e2e4');
+      await emit('info depth 10 score cp 30 pv e2e4 e7e5 g1f3');
+      await click(button('Play 1. e4'));
+      await click(button('Forward'));
+      expect(confirmedFen()).toContain('2p5/4P3');
     });
   });
 

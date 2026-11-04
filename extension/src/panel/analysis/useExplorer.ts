@@ -8,6 +8,7 @@ import { findTarget, legalMoves, toUci, type LegalMoves, type PromotionPiece } f
 import {
   createTree,
   getNode,
+  playLine,
   playMove,
   stepBack,
   stepForward,
@@ -134,6 +135,18 @@ export function useExplorer() {
     },
     forward: () => {
       if (state) goTo(state, stepForward(state.tree, state.current));
+    },
+
+    /**
+     * Adds a line of moves (e.g. the engine's) from the current position and goes to its
+     * move at `index` (or the last one that was legal).
+     */
+    playLine: (moves: readonly string[], index: number) => {
+      if (!state) return;
+      const { tree, ids } = playLine(state.tree, state.current, moves);
+      const target = ids[Math.min(index, ids.length - 1)];
+      if (target === undefined) return;
+      setState({ tree, current: target, selected: null, promotion: null });
     },
   };
 }

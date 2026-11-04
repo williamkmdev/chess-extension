@@ -63,3 +63,19 @@
 .comparison-verdict {
   font-weight: 600;
 }
+
+/* Moves of the engine line: click to put the board there. */
+.line-move {
+  padding: 0 2px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.line-move:hover,
+.line-move:focus-visible {
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
