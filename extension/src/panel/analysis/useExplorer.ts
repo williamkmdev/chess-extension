@@ -7,9 +7,13 @@ import type { Board, ConfirmedPosition, Square } from '../../shared/position';
 import { findTarget, legalMoves, toUci, type LegalMoves, type PromotionPiece } from './legalMoves';
 import {
   createTree,
+  deleteSubtree,
   getNode,
+  isInMainLine,
+  mainLine,
   playLine,
   playMove,
+  promoteToMainLine,
   stepBack,
   stepForward,
   type MoveNode,
@@ -87,6 +91,8 @@ export function useExplorer() {
     lastMove,
     canGoBack: node?.parent != null,
     canGoForward: (node?.children.length ?? 0) > 0,
+    /** The current move is on the main line (always true at the start). */
+    inMainLine: state ? isInMainLine(state.tree, state.current) : true,
 
     /** Starts exploring a newly confirmed position. */
     start: (root: ConfirmedPosition) => {
@@ -141,6 +147,30 @@ export function useExplorer() {
      * Adds a line of moves (e.g. the engine's) from the current position and goes to its
      * move at `index` (or the last one that was legal).
      */
+    /** Jumps to any move of the tree (e.g. clicked in the move list). */
+    goToNode: (id: NodeId) => {
+      if (state?.tree.nodes.has(id)) goTo(state, id);
+    },
+    goToStart: () => {
+      if (state) goTo(state, state.tree.root);
+    },
+    /** To the end of the main continuation from the current move. */
+    goToEnd: () => {
+      if (state) goTo(state, mainLine(state.tree, state.current).at(-1) ?? null);
+    },
+    /** Makes the line through the current move the main line. */
+    makeMainLine: () => {
+      if (!state) return;
+      const tree = promoteToMainLine(state.tree, state.current);
+      if (tree !== state.tree) setState({ ...state, tree });
+    },
+    /** Removes the current move and everything after it; goes to the move before. */
+    deleteFromHere: () => {
+      if (!state || state.current === state.tree.root) return;
+      const { tree, parent } = deleteSubtree(state.tree, state.current);
+      setState({ tree, current: parent, selected: null, promotion: null });
+    },
+
     playLine: (moves: readonly string[], index: number) => {
       if (!state) return;
       const { tree, ids } = playLine(state.tree, state.current, moves);
