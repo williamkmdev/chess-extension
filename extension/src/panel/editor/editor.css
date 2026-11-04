@@ -40,16 +40,6 @@
   border-radius: 4px;
 }
 
-/* Follows the pointer while dragging; never the drop target itself. */
-.drag-ghost {
-  position: fixed;
-  width: calc(min(480px, 100vw - 24px) / 8);
-  height: calc(min(480px, 100vw - 24px) / 8);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 10;
-}
-
 .details,
 .confirm,
 .fen-import {

@@ -1,7 +1,8 @@
 import { useState } from 'preact/hooks';
 import type { EngineTransport } from '../engine/engine';
-import { confirmPosition, type ConfirmResult } from '../shared/confirm';
+import { confirmPosition, type ConfirmationError } from '../shared/confirm';
 import { isSamePiece, movePiece, placePiece, withAssumedCastling } from '../shared/editing';
+import { toFen } from '../shared/fen';
 import {
   emptyDraft,
   startingPosition,
@@ -11,19 +12,21 @@ import {
   type Square,
 } from '../shared/position';
 import { AnalysisPanel } from './analysis/AnalysisPanel';
+import { PromotionPicker } from './analysis/PromotionPicker';
 import { ANALYSIS_DEPTH, useAnalysis } from './analysis/useAnalysis';
+import { useExplorer } from './analysis/useExplorer';
 import { Board } from './board/Board';
 import { pieceImage } from './board/pieceImages';
-import { ConfirmPanel } from './editor/ConfirmPanel';
+import { useDragPiece } from './board/useDragPiece';
+import { ConfirmedFen, ConfirmPanel } from './editor/ConfirmPanel';
 import { FenImport } from './editor/FenImport';
 import { Palette, type Tool } from './editor/Palette';
 import { PositionDetails } from './editor/PositionDetails';
-import { useDragPiece } from './editor/useDragPiece';
 
-interface Confirmation {
-  /** The exact draft this result was computed for. */
+interface FailedConfirmation {
+  /** The exact draft these errors were computed for. */
   readonly draft: DraftPosition;
-  readonly result: ConfirmResult;
+  readonly errors: readonly ConfirmationError[];
 }
 
 export interface AppProps {
@@ -31,25 +34,28 @@ export interface AppProps {
   readonly createTransport?: () => EngineTransport;
 }
 
+const COLOR_NAMES: Readonly<Record<Color, string>> = { w: 'White', b: 'Black' };
+
+/**
+ * Two modes. Set up: edit the draft and confirm it. Explore: a confirmed position on the
+ * board, where only legal moves can be played and the engine analyzes the position shown.
+ */
 export function App({ createTransport }: AppProps = {}) {
   const [position, setPosition] = useState<DraftPosition>(startingPosition);
   const [orientation, setOrientation] = useState<Color>('w');
   const [tool, setTool] = useState<Tool | null>(null);
-  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [failure, setFailure] = useState<FailedConfirmation | null>(null);
+  const explorer = useExplorer();
+  /** The position being explored; null while setting up. */
+  const exploring = explorer.position;
 
-  // Every edit produces a new draft object, so a confirmation only stays visible
-  // while nothing has changed since it was computed.
-  const result = confirmation?.draft === position ? confirmation.result : null;
-  // Only a current, successful confirmation is analyzed; any edit stops the search.
-  const confirmedPosition = result?.ok ? result.position : null;
-  const analysis = useAnalysis(
-    confirmedPosition,
-    createTransport ? { createTransport } : undefined,
-  );
+  // Every edit produces a new draft object, so errors only stay visible while nothing
+  // has changed since they were computed.
+  const errors = failure?.draft === position ? failure.errors : null;
+  // The engine follows the position on the board while exploring; leaving stops it.
+  const analysis = useAnalysis(exploring, createTransport ? { createTransport } : undefined);
   const highlightedSquares =
-    result && !result.ok
-      ? result.errors.flatMap((error) => ('squares' in error ? (error.squares ?? []) : []))
-      : [];
+    errors?.flatMap((error) => ('squares' in error ? (error.squares ?? []) : [])) ?? [];
 
   // Unstated castling rights follow the pieces (see withAssumedCastling).
   const replacePosition = (next: DraftPosition) => {
@@ -70,8 +76,15 @@ export function App({ createTransport }: AppProps = {}) {
   };
 
   const { drag, beginPress, consumePaletteDragClick } = useDragPiece({
-    onSquareClick: applyTool,
+    onSquareClick: (square) => {
+      if (exploring) explorer.clickSquare(square);
+      else applyTool(square);
+    },
     onDrop: ({ piece, from }, target) => {
+      if (exploring) {
+        if (from) explorer.drop(from, target);
+        return;
+      }
       updateBoard((board) => {
         if (from) return target ? movePiece(board, from, target) : placePiece(board, from, null);
         return target ? placePiece(board, target, piece) : board;
@@ -79,70 +92,125 @@ export function App({ createTransport }: AppProps = {}) {
     },
   });
 
+  const targetsFrom = (from: Square | null) =>
+    from ? (explorer.moves.get(from) ?? []).map((target) => target.to) : [];
+
+  const flipButton = (
+    <button
+      type="button"
+      onClick={() => {
+        setOrientation((current) => (current === 'w' ? 'b' : 'w'));
+      }}
+    >
+      Flip board
+    </button>
+  );
+
   return (
     <>
       <h1>Chess Position Explorer</h1>
-      <Board
-        board={position.board}
-        orientation={orientation}
-        dragFrom={drag?.from ?? null}
-        highlightedSquares={highlightedSquares}
-        onSquarePointerDown={(square, event) => {
-          beginPress(event, { piece: position.board[square], square });
-        }}
-      />
-      <Palette
-        selected={tool}
-        onSelect={(next) => {
-          if (!consumePaletteDragClick()) setTool(next);
-        }}
-        onPiecePointerDown={(piece, event) => {
-          beginPress(event, { piece, square: null });
-        }}
-      />
-      <div class="toolbar">
-        <button
-          type="button"
-          onClick={() => {
-            setOrientation((current) => (current === 'w' ? 'b' : 'w'));
-          }}
-        >
-          Flip board
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            // A fresh setup: nothing about the old position's metadata carries over.
-            replacePosition(emptyDraft());
-          }}
-        >
-          Clear board
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            replacePosition(startingPosition());
-          }}
-        >
-          Starting position
-        </button>
-      </div>
-      <PositionDetails position={position} onChange={replacePosition} />
-      <ConfirmPanel
-        result={result}
-        onConfirm={() => {
-          setConfirmation({ draft: position, result: confirmPosition(position) });
-        }}
-      />
-      {confirmedPosition && (
-        <AnalysisPanel
-          position={confirmedPosition}
-          analysis={analysis}
-          targetDepth={ANALYSIS_DEPTH}
-          onRetry={analysis.retry}
-        />
+      {exploring ? (
+        <>
+          <Board
+            board={explorer.board ?? exploring.board}
+            orientation={orientation}
+            dragFrom={drag?.from ?? null}
+            selectedSquare={explorer.selected}
+            targetSquares={targetsFrom(drag?.from ?? explorer.selected)}
+            lastMove={explorer.lastMove}
+            onSquarePointerDown={(square, event) => {
+              // Only the side to move's pieces can be picked up; other presses are clicks.
+              const piece = explorer.canMove(square) ? exploring.board[square] : undefined;
+              beginPress(event, { piece, square });
+            }}
+          />
+          {explorer.promotion && (
+            <PromotionPicker
+              color={exploring.sideToMove}
+              onChoose={explorer.choosePromotion}
+              onCancel={explorer.cancelPromotion}
+            />
+          )}
+          <p class="turn">{COLOR_NAMES[exploring.sideToMove]} to move</p>
+          <div class="toolbar">
+            <button type="button" disabled={!explorer.canGoBack} onClick={explorer.back}>
+              Back
+            </button>
+            <button type="button" disabled={!explorer.canGoForward} onClick={explorer.forward}>
+              Forward
+            </button>
+            {flipButton}
+            <button type="button" onClick={explorer.exit}>
+              Edit position
+            </button>
+          </div>
+          <section class="confirm" aria-label="Current position">
+            <ConfirmedFen key={toFen(exploring)} position={exploring} />
+          </section>
+          <AnalysisPanel
+            position={exploring}
+            analysis={analysis}
+            targetDepth={ANALYSIS_DEPTH}
+            onRetry={analysis.retry}
+          />
+        </>
+      ) : (
+        <>
+          <Board
+            board={position.board}
+            orientation={orientation}
+            dragFrom={drag?.from ?? null}
+            highlightedSquares={highlightedSquares}
+            onSquarePointerDown={(square, event) => {
+              beginPress(event, { piece: position.board[square], square });
+            }}
+          />
+          <Palette
+            selected={tool}
+            onSelect={(next) => {
+              if (!consumePaletteDragClick()) setTool(next);
+            }}
+            onPiecePointerDown={(piece, event) => {
+              beginPress(event, { piece, square: null });
+            }}
+          />
+          <div class="toolbar">
+            {flipButton}
+            <button
+              type="button"
+              onClick={() => {
+                // A fresh setup: nothing about the old position's metadata carries over.
+                replacePosition(emptyDraft());
+              }}
+            >
+              Clear board
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                replacePosition(startingPosition());
+              }}
+            >
+              Starting position
+            </button>
+          </div>
+          <PositionDetails position={position} onChange={replacePosition} />
+          <ConfirmPanel
+            errors={errors}
+            onConfirm={() => {
+              const result = confirmPosition(position);
+              if (result.ok) {
+                setFailure(null);
+                explorer.start(result.position);
+              } else {
+                setFailure({ draft: position, errors: result.errors });
+              }
+            }}
+          />
+          <FenImport onLoad={replacePosition} />
+        </>
       )}
-      <FenImport onLoad={replacePosition} />
+
       {drag && (
         <img
           class="drag-ghost"

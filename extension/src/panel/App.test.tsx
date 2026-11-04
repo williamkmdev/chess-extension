@@ -343,11 +343,14 @@ describe('confirm and copy', () => {
     expect(confirmedFen()).toBeNull();
   });
 
-  it('hides the confirmed FEN as soon as the board changes', async () => {
+  it('returns to editing the confirmed draft with Edit position', async () => {
     await click(button('Confirm position'));
     expect(confirmedFen()).toBe('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
-    await dragTo(square('e2'), 'e4');
+    await click(button('Edit position'));
     expect(confirmedFen()).toBeNull();
+    expect(container.querySelector('.palette')).not.toBeNull();
+    await dragTo(square('e2'), 'e4');
+    expect(label('e4')).toBe('e4, white pawn');
   });
 
   it('copies the confirmed FEN to the clipboard', async () => {
@@ -417,6 +420,205 @@ describe('assumed castling', () => {
   });
 });
 
+describe('exploring moves', () => {
+  const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+  const AFTER_E5 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+  const squaresWith = (cls: string) =>
+    [...container.querySelectorAll(`.square.${cls}`)]
+      .map((el) => el.getAttribute('data-square'))
+      .sort();
+  const selected = () =>
+    container.querySelector('[aria-selected="true"]')?.getAttribute('data-square') ?? null;
+  const picker = () => container.querySelector('.promotion');
+  const turn = () => container.querySelector('.turn')?.textContent;
+
+  async function explore(fen?: string) {
+    if (fen) await loadFen(fen);
+    await click(button('Confirm position'));
+  }
+
+  it('enters Explore on Confirm, hiding the editor', async () => {
+    await explore();
+    expect(container.querySelector('.palette')).toBeNull();
+    expect(container.querySelector('.details')).toBeNull();
+    expect(turn()).toBe('White to move');
+    expect(button('Back').disabled).toBe(true);
+    expect(button('Forward').disabled).toBe(true);
+  });
+
+  it('stays in Set up when the position cannot be confirmed', async () => {
+    await explore('4k3/8/8/8/8/8/8/4K3');
+    expect(container.querySelector('.palette')).not.toBeNull();
+    expect(errorTexts('.confirm')).toHaveLength(1);
+  });
+
+  it('plays a legal move by dragging', async () => {
+    await explore();
+    await dragTo(square('e2'), 'e4');
+    expect(label('e4')).toBe('e4, white pawn');
+    expect(label('e2')).toBe('e2, empty');
+    expect(confirmedFen()).toBe(AFTER_E4);
+    expect(turn()).toBe('Black to move');
+    expect(squaresWith('last-move')).toEqual(['e2', 'e4']);
+    expect(button('Back').disabled).toBe(false);
+  });
+
+  it('snaps an illegal drop back', async () => {
+    await explore();
+    await dragTo(square('e2'), 'e5');
+    expect(label('e2')).toBe('e2, white pawn');
+    expect(label('e5')).toBe('e5, empty');
+    expect(confirmedFen()).toBe(START_FEN);
+  });
+
+  it("does not let the opponent's pieces be picked up", async () => {
+    await explore();
+    await act(() => {
+      pointer('pointerdown', square('e7'), 0, 0);
+      pointer('pointermove', window, 30, 30);
+    });
+    expect(container.querySelector('.drag-ghost')).toBeNull();
+    await act(() => {
+      pointer('pointerup', window, 30, 30);
+    });
+    await tap('e7');
+    expect(selected()).toBeNull();
+  });
+
+  it('shows legal targets while dragging', async () => {
+    await explore();
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(square('f3'));
+    await act(() => {
+      pointer('pointerdown', square('g1'), 0, 0);
+      pointer('pointermove', window, 30, 30);
+    });
+    expect(squaresWith('target')).toEqual(['f3', 'h3']);
+    await act(() => {
+      pointer('pointerup', window, 30, 30);
+    });
+    expect(label('f3')).toBe('f3, white knight');
+  });
+
+  it('moves by clicking a piece, then a target', async () => {
+    await explore();
+    await tap('g1');
+    expect(selected()).toBe('g1');
+    expect(squaresWith('target')).toEqual(['f3', 'h3']);
+    await tap('f3');
+    expect(label('f3')).toBe('f3, white knight');
+    expect(selected()).toBeNull();
+    expect(squaresWith('target')).toEqual([]);
+  });
+
+  it('reselects, deselects, and ignores clicks on squares the piece cannot reach', async () => {
+    await explore();
+    await tap('g1');
+    await tap('b1');
+    expect(selected()).toBe('b1');
+    await tap('b1');
+    expect(selected()).toBeNull();
+    await tap('g1');
+    await tap('g4');
+    expect(selected()).toBeNull();
+    expect(confirmedFen()).toBe(START_FEN);
+  });
+
+  it('marks capturable pieces differently from empty targets', async () => {
+    await explore('4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1');
+    await tap('e4');
+    expect(squaresWith('target')).toEqual(['d5', 'e5']);
+    expect(squaresWith('capture')).toEqual(['d5']);
+  });
+
+  it('asks for the promotion piece before playing the move', async () => {
+    await explore('4k3/P7/8/8/8/8/8/4K3 w - - 0 1');
+    await dragTo(square('a7'), 'a8');
+    expect(picker()).not.toBeNull();
+    // The pawn is shown on its destination while choosing, but nothing is played yet.
+    expect(label('a8')).toBe('a8, white pawn');
+    expect(label('a7')).toBe('a7, empty');
+    expect(confirmedFen()).toBe('4k3/P7/8/8/8/8/8/4K3 w - - 0 1');
+
+    await click(button('white knight'));
+    expect(picker()).toBeNull();
+    expect(label('a8')).toBe('a8, white knight');
+    expect(confirmedFen()).toBe('N3k3/8/8/8/8/8/8/4K3 b - - 0 1');
+  });
+
+  it('plays no move when the promotion is cancelled', async () => {
+    await explore('4k3/P7/8/8/8/8/8/4K3 w - - 0 1');
+    await tap('a7');
+    await tap('a8');
+    expect(picker()).not.toBeNull();
+    expect(label('a8')).toBe('a8, white pawn');
+    await click(button('Cancel'));
+    expect(picker()).toBeNull();
+    expect(label('a7')).toBe('a7, white pawn');
+    expect(label('a8')).toBe('a8, empty');
+
+    await dragTo(square('a7'), 'a8');
+    await act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(picker()).toBeNull();
+    expect(label('a7')).toBe('a7, white pawn');
+  });
+
+  it('previews a capturing promotion, and restores the board when cancelled by a click', async () => {
+    await explore('1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1');
+    await dragTo(square('a7'), 'b8');
+    expect(label('b8')).toBe('b8, white pawn');
+    expect(label('a7')).toBe('a7, empty');
+
+    await tap('d4');
+    expect(picker()).toBeNull();
+    expect(label('b8')).toBe('b8, black knight');
+    expect(label('a7')).toBe('a7, white pawn');
+  });
+
+  it('goes back and forward along the line, and branches from earlier moves', async () => {
+    await explore();
+    await dragTo(square('e2'), 'e4');
+    await dragTo(square('e7'), 'e5');
+    expect(confirmedFen()).toBe(AFTER_E5);
+
+    await click(button('Back'));
+    expect(confirmedFen()).toBe(AFTER_E4);
+    expect(squaresWith('last-move')).toEqual(['e2', 'e4']);
+    await click(button('Back'));
+    expect(confirmedFen()).toBe(START_FEN);
+    expect(squaresWith('last-move')).toEqual([]);
+    expect(button('Back').disabled).toBe(true);
+    await click(button('Forward'));
+    await click(button('Forward'));
+    expect(confirmedFen()).toBe(AFTER_E5);
+    expect(button('Forward').disabled).toBe(true);
+
+    // A different reply after 1. e4 makes a branch; Forward still follows 1... e5.
+    await click(button('Back'));
+    await dragTo(square('c7'), 'c5');
+    expect(confirmedFen()).toContain('2p5/4P3');
+    await click(button('Back'));
+    await click(button('Forward'));
+    expect(confirmedFen()).toBe(AFTER_E5);
+  });
+
+  it('allows no moves in a finished game', async () => {
+    await explore('7k/6Q1/6K1/8/8/8/8/8 b - - 0 1');
+    await tap('h8');
+    expect(selected()).toBeNull();
+  });
+
+  it('labels the assumptions of the position being explored', async () => {
+    await explore('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w');
+    await dragTo(square('g1'), 'f3');
+    const note = container.querySelector('.assumptions')?.textContent ?? '';
+    expect(note).toContain('castling');
+    expect(note).not.toContain('en passant');
+  });
+});
+
 describe('engine analysis', () => {
   const engine = (index = 0) => {
     const found = engines[index];
@@ -471,11 +673,11 @@ describe('engine analysis', () => {
     expect(analysisText()).toContain('2... Qh4#');
   });
 
-  it('stops the search and clears the analysis as soon as the position is edited', async () => {
+  it('stops the search and clears the analysis when going back to editing', async () => {
     await click(button('Confirm position'));
     await settle();
     await emit('info depth 5 score cp 20 pv e2e4');
-    await click(labeledInput('Black'));
+    await click(button('Edit position'));
     expect(analysisText()).toBeNull();
     expect(engine().searchCommands.at(-1)).toBe('stop');
 
@@ -484,10 +686,35 @@ describe('engine analysis', () => {
     expect(analysisText()).toBeNull();
   });
 
+  it('analyzes each position the board shows, dropping the previous search', async () => {
+    await click(button('Confirm position'));
+    await settle();
+    await dragTo(square('e2'), 'e4');
+    await settle();
+    expect(engine().searchCommands.slice(-1)).toEqual(['stop']);
+    await emit('info depth 9 score cp 50 pv d2d4', 'bestmove d2d4');
+    expect(engine().searchCommands.slice(-2)).toEqual([
+      'position fen rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      'go depth 20',
+    ]);
+    expect(analysisText()).not.toContain('+0.50');
+
+    // Black to move: the engine's +30 for Black is shown from White's side.
+    await emit('info depth 10 score cp 30 pv e7e5 g1f3');
+    expect(analysisText()).toContain('−0.30');
+    expect(analysisText()).toContain('1... e5 2. Nf3');
+
+    await click(button('Back'));
+    await settle();
+    expect(analysisText()).not.toContain('1... e5');
+    expect(engines).toHaveLength(1);
+  });
+
   it('reuses the running engine for the next confirmation', async () => {
     await click(button('Confirm position'));
     await settle();
     await emit('bestmove e2e4');
+    await click(button('Edit position'));
     await dragTo(square('e2'), 'e4');
     await click(labeledInput('Black'));
     await click(button('Confirm position'));
@@ -501,6 +728,7 @@ describe('engine analysis', () => {
     await click(button('Confirm position'));
     await settle();
     expect(analysisText()).toContain('Checkmate: White wins');
+    await click(button('Edit position'));
     await loadFen('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1');
     await click(button('Confirm position'));
     await settle();
@@ -566,8 +794,7 @@ describe('engine analysis', () => {
     await act(() => {
       engine().crash('Worker crashed.');
     });
-    await click(labeledInput('Black'));
-    await click(button('Confirm position'));
+    await dragTo(square('e2'), 'e4');
     await settle();
     expect(analysisText()).toContain('Engine unavailable: Worker crashed.');
   });

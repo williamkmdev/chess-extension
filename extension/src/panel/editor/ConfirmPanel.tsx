@@ -1,34 +1,37 @@
 import { useState } from 'preact/hooks';
-import type { ConfirmResult } from '../../shared/confirm';
+import type { ConfirmationError } from '../../shared/confirm';
 import { toFen } from '../../shared/fen';
 import { CASTLING_RIGHTS, type ConfirmedPosition } from '../../shared/position';
 import { CASTLING_LABELS } from './PositionDetails';
 
 export interface ConfirmPanelProps {
-  /** The result for the current draft, or null if it hasn't been confirmed since its last edit. */
-  readonly result: ConfirmResult | null;
+  /** Why the current draft couldn't be confirmed; null if it hasn't failed since its last edit. */
+  readonly errors: readonly ConfirmationError[] | null;
   readonly onConfirm: () => void;
 }
 
-export function ConfirmPanel({ result, onConfirm }: ConfirmPanelProps) {
+export function ConfirmPanel({ errors, onConfirm }: ConfirmPanelProps) {
   return (
     <section class="confirm" aria-label="Confirm position">
       <button type="button" onClick={onConfirm}>
         Confirm position
       </button>
-      {result && !result.ok && (
+      {errors && (
         <ul class="errors" role="alert">
-          {result.errors.map((error, index) => (
+          {errors.map((error, index) => (
             <li key={index}>{error.message}</li>
           ))}
         </ul>
       )}
-      {result?.ok && <ConfirmedFen key={toFen(result.position)} position={result.position} />}
     </section>
   );
 }
 
-function ConfirmedFen({ position }: { position: ConfirmedPosition }) {
+/**
+ * A confirmed position's FEN with a Copy button, and which metadata was assumed rather
+ * than stated. Give it `key={fen}` so the copy status resets when the position changes.
+ */
+export function ConfirmedFen({ position }: { position: ConfirmedPosition }) {
   const fen = toFen(position);
   const [status, setStatus] = useState<string | null>(null);
   const assumptions = describeAssumptions(position);
