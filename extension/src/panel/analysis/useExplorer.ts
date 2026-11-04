@@ -1,9 +1,9 @@
 // Exploring a confirmed position: which move of the tree is on the board, which piece
 // is picked up, and a promotion waiting for its piece. Only legal moves are played.
 
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo, useRef, useState } from 'preact/hooks';
 import { movePiece } from '../../shared/editing';
-import type { Board, ConfirmedPosition, Square } from '../../shared/position';
+import type { Board, Color, ConfirmedPosition, Square } from '../../shared/position';
 import { findTarget, legalMoves, toUci, type LegalMoves, type PromotionPiece } from './legalMoves';
 import {
   createTree,
@@ -34,9 +34,19 @@ const NO_MOVES: LegalMoves = new Map();
 
 export function useExplorer() {
   const [state, setState] = useState<ExplorerState | null>(null);
+  /** While playing against Stockfish: the side you play. */
+  const [playing, setPlayingState] = useState<Color | null>(null);
+  // The same, readable at once by a queued engine reply (state only updates on render).
+  const livePlaying = useRef<Color | null>(null);
+  const setPlaying = (color: Color | null) => {
+    livePlaying.current = color;
+    setPlayingState(color);
+  };
   const node: MoveNode | null = state ? getNode(state.tree, state.current) : null;
   const position = node?.position ?? null;
-  const moves = useMemo(() => (position ? legalMoves(position) : NO_MOVES), [position]);
+  const legal = useMemo(() => (position ? legalMoves(position) : NO_MOVES), [position]);
+  // The moves you may make: while playing, none on Stockfish's turn.
+  const moves = playing !== null && position?.sideToMove !== playing ? NO_MOVES : legal;
 
   const goTo = (current: ExplorerState, id: NodeId | null) => {
     if (id === null) return;
@@ -91,6 +101,12 @@ export function useExplorer() {
     lastMove,
     canGoBack: node?.parent != null,
     canGoForward: (node?.children.length ?? 0) > 0,
+    /** The current move has no continuation yet. */
+    atLineEnd: node !== null && node.children.length === 0,
+    /** The side to move has no legal move (checkmate or stalemate). */
+    gameOver: position !== null && legal.size === 0,
+    /** While playing against Stockfish: the side you play; otherwise null. */
+    playing,
     /** The current move is on the main line (always true at the start). */
     inMainLine: state ? isInMainLine(state.tree, state.current) : true,
 
@@ -101,6 +117,38 @@ export function useExplorer() {
     /** Stops exploring (back to setting up the position). */
     exit: () => {
       setState(null);
+      setPlaying(null);
+    },
+
+    /**
+     * Starts playing against Stockfish. You play the side to move now, unless
+     * `stockfishFirst`: then Stockfish plays it and you play the other side.
+     */
+    startPlaying: (stockfishFirst = false) => {
+      if (!position) return;
+      const toMove = position.sideToMove;
+      setPlaying(stockfishFirst ? (toMove === 'w' ? 'b' : 'w') : toMove);
+      if (state) setState({ ...state, selected: null, promotion: null });
+    },
+    stopPlaying: () => {
+      setPlaying(null);
+    },
+    /**
+     * Plays Stockfish's move found for move `at`. Checked against the live state, not
+     * this render's: a click that happened since (Back, Stop playing, Edit position)
+     * wins, and nothing is played unless it's still Stockfish's turn at the end of that
+     * line in a game that's still on.
+     */
+    playEngineMove: (at: NodeId, uci: string) => {
+      setState((live) => {
+        const you = livePlaying.current;
+        if (!live || you === null || live.current !== at) return live;
+        const node = getNode(live.tree, at);
+        if (node.children.length > 0 || node.position.sideToMove === you) return live;
+        const result = playMove(live.tree, at, uci);
+        if (!result) return live;
+        return { tree: result.tree, current: result.id, selected: null, promotion: null };
+      });
     },
 
     /** Whether a piece on `square` may be picked up (it's that side's turn and it can move). */

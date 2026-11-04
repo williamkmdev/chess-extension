@@ -959,6 +959,182 @@ describe('engine analysis', () => {
     });
   });
 
+  describe('playing against Stockfish', () => {
+    const START_POSITION = 'position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const AFTER_E5 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+    const AFTER_D4 = 'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1';
+    const turn = () => container.querySelector('.turn')?.textContent ?? null;
+    const lastSearch = () =>
+      engine()
+        .searchCommands.filter((command) => command.startsWith('position'))
+        .at(-1);
+
+    /** Ends any stopped search until the engine is searching `fen`, then finishes it. */
+    async function finishSearch(fen: string, bestMove: string) {
+      for (let i = 0; i < 5 && lastSearch() !== `position fen ${fen}`; i += 1) {
+        await emit('bestmove a2a3');
+      }
+      expect(lastSearch()).toBe(`position fen ${fen}`);
+      await emit(`info depth 20 score cp 0 pv ${bestMove}`, `bestmove ${bestMove}`);
+    }
+
+    async function startPlaying() {
+      await click(button('Confirm position'));
+      await settle();
+      await click(button('Play vs Stockfish'));
+    }
+
+    it('answers your move once its search of the position has finished', async () => {
+      await startPlaying();
+      expect(turn()).toBe('You play White · Your move');
+      expect(button('Stop playing')).toBeTruthy();
+
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      expect(turn()).toBe('You play White · Stockfish is thinking…');
+      await finishSearch(AFTER_E4, 'e7e5');
+      expect(confirmedFen()).toBe(AFTER_E5);
+      expect(turn()).toBe('You play White · Your move');
+      expect(container.querySelector('.move-list')?.textContent).toBe('1. e4 e5');
+    });
+
+    it('lets Stockfish take the side to move when asked, so it moves first', async () => {
+      await click(button('Confirm position'));
+      await settle();
+      const box = labeledInput('Stockfish moves first');
+      expect(box.checked).toBe(false);
+      await click(box);
+      await click(button('Play vs Stockfish'));
+      expect(turn()).toBe('You play Black · Stockfish is thinking…');
+
+      await finishSearch(START_POSITION.slice('position fen '.length), 'e2e4');
+      expect(confirmedFen()).toBe(AFTER_E4);
+      expect(turn()).toBe('You play Black · Your move');
+    });
+
+    it("lets you move only your own side's pieces", async () => {
+      await startPlaying();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await tap('e7');
+      await tap('e5');
+      expect(confirmedFen()).toBe(AFTER_E4);
+      expect(container.querySelectorAll('.square.target')).toHaveLength(0);
+    });
+
+    it('replies at once from a search that already finished', async () => {
+      await click(button('Confirm position'));
+      await settle();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await finishSearch(AFTER_E4, 'e7e5');
+      await click(button('Back'));
+      await settle();
+      await click(button('Play vs Stockfish'));
+      const searches = engine().searchCommands.filter((c) => c === `position fen ${AFTER_E4}`);
+
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      expect(confirmedFen()).toBe(AFTER_E5);
+      expect(engine().searchCommands.filter((c) => c === `position fen ${AFTER_E4}`)).toEqual(
+        searches,
+      );
+    });
+
+    it('does not move when you go back into the game, but answers a new branch', async () => {
+      await startPlaying();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await finishSearch(AFTER_E4, 'e7e5');
+
+      await click(button('Back'));
+      await settle();
+      expect(confirmedFen()).toBe(AFTER_E4);
+      expect(turn()).toContain('its move is already in this line');
+
+      await click(button('Back'));
+      await settle();
+      await dragTo(square('d2'), 'd4');
+      await settle();
+      await finishSearch(AFTER_D4, 'd7d5');
+      expect(confirmedFen()).toBe('rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2');
+      expect(container.querySelector('.move-list')?.textContent).toBe('1. e4 (1. d4 d5) 1... e5');
+    });
+
+    it('plays nothing for a position you have already left', async () => {
+      await startPlaying();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await click(button('Back'));
+      await settle();
+      await emit('info depth 20 score cp 0 pv e7e5', 'bestmove e7e5');
+      await emit('bestmove e7e5');
+      expect(confirmedFen()).toBe(START_POSITION.slice('position fen '.length));
+      expect(turn()).toBe('You play White · Your move');
+    });
+
+    it('lets a move made just as Stockfish finishes win over its reply', async () => {
+      await startPlaying();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      for (let i = 0; i < 5 && lastSearch() !== `position fen ${AFTER_E4}`; i += 1) {
+        await emit('bestmove a2a3');
+      }
+      // The search finishes and renders, but the reply's effect hasn't run when Back is
+      // clicked (outside act(), as in the browser between a render and its effects).
+      engine().emit('info depth 20 score cp 0 pv e7e5', 'bestmove e7e5');
+      for (let i = 0; i < 20; i += 1) await Promise.resolve();
+      button('Back').click();
+      await settle();
+      expect(confirmedFen()).toBe(START_POSITION.slice('position fen '.length));
+    });
+
+    it('lets Stop playing, clicked just as Stockfish finishes, win over its reply', async () => {
+      await startPlaying();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      for (let i = 0; i < 5 && lastSearch() !== `position fen ${AFTER_E4}`; i += 1) {
+        await emit('bestmove a2a3');
+      }
+      engine().emit('info depth 20 score cp 0 pv e7e5', 'bestmove e7e5');
+      for (let i = 0; i < 20; i += 1) await Promise.resolve();
+      button('Stop playing').click();
+      await settle();
+      expect(confirmedFen()).toBe(AFTER_E4);
+    });
+
+    it('stops answering after Stop playing, and frees both sides again', async () => {
+      await startPlaying();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await click(button('Stop playing'));
+      await finishSearch(AFTER_E4, 'e7e5');
+      expect(confirmedFen()).toBe(AFTER_E4);
+      expect(turn()).toBe('Black to move');
+      await dragTo(square('e7'), 'e5');
+      expect(confirmedFen()).toBe(AFTER_E5);
+    });
+
+    it('stops playing when going back to edit the position', async () => {
+      await startPlaying();
+      await click(button('Edit position'));
+      await click(button('Confirm position'));
+      expect(turn()).toBe('White to move');
+      expect(button('Play vs Stockfish')).toBeTruthy();
+    });
+
+    it('plays the side to move, and ends the game at checkmate', async () => {
+      await loadFen('rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2');
+      await startPlaying();
+      expect(turn()).toBe('You play Black · Your move');
+      await dragTo(square('d8'), 'h4');
+      await settle();
+      expect(turn()).toBe('You play Black · Game over');
+      expect(analysisText()).toContain('Checkmate: Black wins');
+    });
+  });
+
   it('reuses the running engine for the next confirmation', async () => {
     await click(button('Confirm position'));
     await settle();
