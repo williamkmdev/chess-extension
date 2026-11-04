@@ -29,20 +29,26 @@ function load(position: ConfirmedPosition): Chess {
   return new Chess(toFen(position), { skipValidation: true });
 }
 
+export interface LineMove {
+  /** The move in engine notation, e.g. "e2e4". */
+  readonly uci: UciMove;
+  /** How it reads in the line: "1. e4", "e5", or "12... Qh4#" for a first Black move. */
+  readonly label: string;
+}
+
 /**
- * The engine's line in standard notation with move numbers, e.g.
- * "1. e4 e5 2. Nf3" or "12... Qh4#". Stops at the first move that isn't legal, so a
- * malformed line can never be shown as if it were real.
+ * The engine's line as numbered moves in standard notation. Stops at the first move
+ * that isn't legal, so a malformed line can never be shown as if it were real.
  */
-export function pvToSan(
+export function pvMoves(
   position: ConfirmedPosition,
   moves: readonly UciMove[],
   maxPlies = moves.length,
-): string {
+): LineMove[] {
   const chess = load(position);
   let moveNumber = position.fullmoveNumber.value;
   let color = position.sideToMove;
-  const parts: string[] = [];
+  const line: LineMove[] = [];
 
   for (const uci of moves.slice(0, maxPlies)) {
     let san: string;
@@ -56,12 +62,25 @@ export function pvToSan(
     } catch {
       break;
     }
-    if (color === 'w') parts.push(`${String(moveNumber)}. ${san}`);
-    else parts.push(parts.length === 0 ? `${String(moveNumber)}... ${san}` : san);
+    let label = san;
+    if (color === 'w') label = `${String(moveNumber)}. ${san}`;
+    else if (line.length === 0) label = `${String(moveNumber)}... ${san}`;
+    line.push({ uci, label });
     if (color === 'b') moveNumber += 1;
     color = color === 'w' ? 'b' : 'w';
   }
-  return parts.join(' ');
+  return line;
+}
+
+/** The engine's line as text, e.g. "1. e4 e5 2. Nf3" or "12... Qh4#". */
+export function pvToSan(
+  position: ConfirmedPosition,
+  moves: readonly UciMove[],
+  maxPlies = moves.length,
+): string {
+  return pvMoves(position, moves, maxPlies)
+    .map((move) => move.label)
+    .join(' ');
 }
 
 export type GameOver =

@@ -1,4 +1,5 @@
-import { formatEvaluation, pvToSan } from '../../engine/notation';
+import { Fragment } from 'preact';
+import { formatEvaluation, pvMoves } from '../../engine/notation';
 import type { ConfirmedPosition } from '../../shared/position';
 import type { AnalysisState } from './useAnalysis';
 import './analysis.css';
@@ -11,23 +12,29 @@ export interface AnalysisPanelProps {
   readonly analysis: AnalysisState;
   readonly targetDepth: number;
   readonly onRetry: () => void;
+  /**
+   * A move of the engine's line was clicked: `moves` is the whole line shown (engine
+   * notation) and `index` the clicked move.
+   */
+  readonly onPlayLine?: (moves: readonly string[], index: number) => void;
 }
 
-export function AnalysisPanel({ position, analysis, targetDepth, onRetry }: AnalysisPanelProps) {
+export function AnalysisPanel(props: AnalysisPanelProps) {
   return (
     <section class="analysis" aria-label="Engine analysis">
       <h2>Engine analysis</h2>
-      <AnalysisBody
-        position={position}
-        analysis={analysis}
-        targetDepth={targetDepth}
-        onRetry={onRetry}
-      />
+      <AnalysisBody {...props} />
     </section>
   );
 }
 
-function AnalysisBody({ position, analysis, targetDepth, onRetry }: AnalysisPanelProps) {
+function AnalysisBody({
+  position,
+  analysis,
+  targetDepth,
+  onRetry,
+  onPlayLine,
+}: AnalysisPanelProps) {
   switch (analysis.status) {
     case 'idle':
       return null;
@@ -54,7 +61,8 @@ function AnalysisBody({ position, analysis, targetDepth, onRetry }: AnalysisPane
     case 'done': {
       const { update } = analysis;
       if (!update) return <p class="analysis-status">Analyzing…</p>;
-      const line = pvToSan(position, update.pv, LINE_PLIES);
+      const line = pvMoves(position, update.pv, LINE_PLIES);
+      const ucis = line.map((move) => move.uci);
       return (
         <>
           <p class="analysis-eval">
@@ -65,7 +73,29 @@ function AnalysisBody({ position, analysis, targetDepth, onRetry }: AnalysisPane
             Depth {update.depth}/{targetDepth}
             {analysis.status === 'done' ? ' · done' : ' · analyzing…'}
           </p>
-          {line && <p class="analysis-line">{line}</p>}
+          {line.length > 0 && (
+            <p class="analysis-line">
+              {line.map((move, index) => (
+                <Fragment key={move.uci + String(index)}>
+                  {index > 0 && ' '}
+                  {onPlayLine ? (
+                    <button
+                      type="button"
+                      class="line-move"
+                      aria-label={`Play ${move.label}`}
+                      onClick={() => {
+                        onPlayLine(ucis, index);
+                      }}
+                    >
+                      {move.label}
+                    </button>
+                  ) : (
+                    move.label
+                  )}
+                </Fragment>
+              ))}
+            </p>
+          )}
         </>
       );
     }
