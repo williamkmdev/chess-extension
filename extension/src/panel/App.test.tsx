@@ -1254,3 +1254,101 @@ describe('engine analysis', () => {
     expect(engine().terminated).toBe(true);
   });
 });
+
+describe('screenshot', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+  const shown = () => container.querySelector<HTMLImageElement>('.screenshot img');
+  const alertText = () => container.querySelector('.capture-error')?.textContent ?? null;
+
+  /** Click Capture and let the capture's promise settle. */
+  async function capture(name = 'Capture tab') {
+    await click(button(name));
+    await act(async () => {
+      for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    });
+  }
+
+  async function renderWith(capture: () => Promise<string>) {
+    await act(() => {
+      render(null, container);
+    });
+    await act(() => {
+      render(<App captureVisibleTab={capture} />, container);
+    });
+  }
+
+  it('captures only when asked, and shows the screenshot', async () => {
+    const fake = vi.fn(() => Promise.resolve(PNG));
+    await renderWith(fake);
+    expect(fake).not.toHaveBeenCalled();
+    expect(shown()).toBeNull();
+
+    await capture();
+    expect(fake).toHaveBeenCalledTimes(1);
+    expect(shown()?.getAttribute('src')).toBe(PNG);
+    expect(button('Capture again')).toBeTruthy();
+  });
+
+  it('shows that it is capturing, and blocks a second click meanwhile', async () => {
+    let finish: (url: string) => void = () => undefined;
+    await renderWith(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await click(button('Capture tab'));
+    expect(container.querySelector('.capture-status')?.textContent).toBe('Capturing…');
+    expect(button('Capture tab').disabled).toBe(true);
+
+    await act(async () => {
+      finish(PNG);
+      await Promise.resolve();
+    });
+    expect(container.querySelector('.capture-status')).toBeNull();
+    expect(shown()).not.toBeNull();
+  });
+
+  it('does not bring back a removed screenshot when a pending capture finishes', async () => {
+    let finish: (url: string) => void = () => undefined;
+    let calls = 0;
+    await renderWith(() => {
+      calls += 1;
+      return calls === 1
+        ? Promise.resolve(PNG)
+        : new Promise<string>((resolve) => {
+            finish = resolve;
+          });
+    });
+    await capture();
+    await click(button('Capture again'));
+    await click(button('Remove screenshot'));
+    await act(async () => {
+      finish('data:image/png;base64,second');
+      await Promise.resolve();
+    });
+    expect(shown()).toBeNull();
+    expect(container.querySelector('.capture-status')).toBeNull();
+    expect(button('Capture tab').disabled).toBe(false);
+  });
+
+  it('explains a capture Chrome refused', async () => {
+    await renderWith(() =>
+      Promise.reject(new Error("Either the '<all_urls>' or 'activeTab' permission is required.")),
+    );
+    await capture();
+    expect(alertText()).toContain('toolbar icon');
+    expect(shown()).toBeNull();
+  });
+
+  it('removes the screenshot, and keeps it while confirming and exploring', async () => {
+    await renderWith(() => Promise.resolve(PNG));
+    await capture();
+    await click(button('Confirm position'));
+    expect(shown()).not.toBeNull();
+
+    await click(button('Remove screenshot'));
+    expect(shown()).toBeNull();
+    expect(button('Capture tab')).toBeTruthy();
+  });
+});

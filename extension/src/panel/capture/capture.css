@@ -1,0 +1,30 @@
+.capture {
+  max-width: 480px;
+  margin-bottom: 8px;
+}
+
+.capture .toolbar {
+  margin-top: 0;
+}
+
+.capture-status {
+  margin: 4px 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.capture-error {
+  margin: 4px 0;
+  color: #dc2626;
+}
+
+.screenshot {
+  margin: 8px 0 0;
+}
+
+.screenshot img {
+  display: block;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 4px;
+}

@@ -13,8 +13,9 @@ describe('manifest', () => {
   });
 
   it('requests only the permissions the current features need', () => {
-    // Widen deliberately (e.g. activeTab for capture) alongside the feature that needs it.
-    expect(manifest.permissions).toEqual(['sidePanel']);
+    // activeTab: the screenshot is of the tab the user opened the panel on, and only
+    // while they're on it; no access to any site otherwise. Widen only deliberately.
+    expect(manifest.permissions).toEqual(['sidePanel', 'activeTab']);
     expect(manifest).not.toHaveProperty('host_permissions');
   });
 
