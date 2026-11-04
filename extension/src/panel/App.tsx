@@ -19,6 +19,8 @@ import { ANALYSIS_DEPTH, useAnalysis } from './analysis/useAnalysis';
 import { useExplorer } from './analysis/useExplorer';
 import { usePlayVsEngine, type PlayStatus } from './analysis/usePlayVsEngine';
 import { Board } from './board/Board';
+import { CapturePanel } from './capture/CapturePanel';
+import { captureWithChrome, type CaptureVisibleTab, type Screenshot } from './capture/captureTab';
 import { pieceImage } from './board/pieceImages';
 import { useDragPiece } from './board/useDragPiece';
 import { ConfirmedFen, ConfirmPanel } from './editor/ConfirmPanel';
@@ -35,6 +37,8 @@ interface FailedConfirmation {
 export interface AppProps {
   /** Engine factory; tests pass a fake. Defaults to the bundled Stockfish worker. */
   readonly createTransport?: () => EngineTransport;
+  /** Screenshot of the visible tab; tests pass a fake. Defaults to chrome.tabs. */
+  readonly captureVisibleTab?: CaptureVisibleTab;
 }
 
 const COLOR_NAMES: Readonly<Record<Color, string>> = { w: 'White', b: 'Black' };
@@ -53,11 +57,13 @@ function turnText(sideToMove: Color, playing: Color | null, status: PlayStatus, 
  * Two modes. Set up: edit the draft and confirm it. Explore: a confirmed position on the
  * board, where only legal moves can be played and the engine analyzes the position shown.
  */
-export function App({ createTransport }: AppProps = {}) {
+export function App({ createTransport, captureVisibleTab = captureWithChrome }: AppProps = {}) {
   const [position, setPosition] = useState<DraftPosition>(startingPosition);
   const [orientation, setOrientation] = useState<Color>('w');
   const [tool, setTool] = useState<Tool | null>(null);
   const [failure, setFailure] = useState<FailedConfirmation | null>(null);
+  /** The latest screenshot, in memory only. */
+  const [screenshot, setScreenshot] = useState<Screenshot | null>(null);
   /** Play vs Stockfish: Stockfish takes the side to move (so it moves first). */
   const [stockfishFirst, setStockfishFirst] = useState(false);
   const explorer = useExplorer();
@@ -169,6 +175,14 @@ export function App({ createTransport }: AppProps = {}) {
   return (
     <>
       <h1>Chess Position Explorer</h1>
+      <CapturePanel
+        screenshot={screenshot}
+        capture={captureVisibleTab}
+        onCaptured={setScreenshot}
+        onRemove={() => {
+          setScreenshot(null);
+        }}
+      />
       {exploring ? (
         <>
           <Board
