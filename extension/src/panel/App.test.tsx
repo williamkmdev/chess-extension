@@ -644,6 +644,82 @@ describe('exploring moves', () => {
     expect(selected()).toBeNull();
   });
 
+  describe('move list', () => {
+    const AFTER_NF3 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2';
+    const listText = () => container.querySelector('.move-list')?.textContent ?? null;
+    const listMove = (text: string) => {
+      const found = [...container.querySelectorAll<HTMLButtonElement>('.move-list button')].find(
+        (el) => el.textContent === text,
+      );
+      if (!found) throw new Error(`No move '${text}' in the list`);
+      return found;
+    };
+    const currentMove = () =>
+      container.querySelector('.move-list [aria-current="true"]')?.textContent ?? null;
+
+    /** 1. e4 e5 2. Nf3, then 1... c5 as a side line; the board ends on 1... c5. */
+    async function exploreWithSideLine({ confirm = true } = {}) {
+      if (confirm) await explore();
+      await dragTo(square('e2'), 'e4');
+      await dragTo(square('e7'), 'e5');
+      await dragTo(square('g1'), 'f3');
+      await click(button('Back'));
+      await click(button('Back'));
+      await dragTo(square('c7'), 'c5');
+    }
+
+    it('appears with the first move and shows side lines in parentheses', async () => {
+      await explore();
+      expect(listText()).toBeNull();
+      await exploreWithSideLine({ confirm: false });
+      expect(listText()).toBe('1. e4 e5 (1... c5) 2. Nf3');
+      expect(currentMove()).toBe('1... c5');
+      expect(listMove('1... c5').classList.contains('side-line')).toBe(true);
+    });
+
+    it('jumps to any move, including into side lines', async () => {
+      await exploreWithSideLine();
+      await click(listMove('2. Nf3'));
+      expect(confirmedFen()).toBe(AFTER_NF3);
+      expect(currentMove()).toBe('2. Nf3');
+      await click(listMove('1... c5'));
+      expect(confirmedFen()).toContain('2p5/4P3');
+    });
+
+    it('makes a side line the main line, which Forward then follows', async () => {
+      await exploreWithSideLine();
+      expect(button('Make main line').disabled).toBe(false);
+      await click(button('Make main line'));
+      expect(listText()).toBe('1. e4 c5 (1... e5 2. Nf3)');
+      expect(button('Make main line').disabled).toBe(true);
+
+      await press('Home');
+      await click(button('Forward'));
+      await click(button('Forward'));
+      expect(confirmedFen()).toContain('2p5/4P3');
+    });
+
+    it('deletes the current move and what follows, going to the move before', async () => {
+      await exploreWithSideLine();
+      await click(listMove('e5'));
+      await click(button('Delete from here'));
+      expect(listText()).toBe('1. e4 c5');
+      expect(confirmedFen()).toBe(AFTER_E4);
+      expect(currentMove()).toBe('1. e4');
+
+      await press('Home');
+      expect(button('Delete from here').disabled).toBe(true);
+    });
+
+    it('jumps to the start and the end of the line with Home and End', async () => {
+      await exploreWithSideLine();
+      await press('Home');
+      expect(confirmedFen()).toBe(START_FEN);
+      await press('End');
+      expect(confirmedFen()).toBe(AFTER_NF3);
+    });
+  });
+
   it('labels the assumptions of the position being explored', async () => {
     await explore('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w');
     await dragTo(square('g1'), 'f3');

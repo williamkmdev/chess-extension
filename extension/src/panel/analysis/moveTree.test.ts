@@ -6,11 +6,14 @@ import { parseFen, toFen } from '../../shared/fen';
 import type { ConfirmedPosition } from '../../shared/position';
 import {
   createTree,
+  deleteSubtree,
   getNode,
+  isInMainLine,
   mainLine,
   pathTo,
   playLine,
   playMove,
+  promoteToMainLine,
   stepBack,
   stepForward,
   type MoveTree,
@@ -297,5 +300,69 @@ describe('navigation', () => {
     expect(mainLine(tree, root)).toEqual([e4, e5, nf3]);
     expect(mainLine(tree, e5)).toEqual([nf3]);
     expect(mainLine(tree, nf3)).toEqual([]);
+  });
+});
+
+describe('main line, promotion and deletion', () => {
+  // 1. e4 e5 2. Nf3, side line 1... c5 2. Nf3 with its own side line 2. Nc3,
+  // and a second alternative 1... e6.
+  const main = playLine(createTree(confirmed(START)), 0, ['e2e4', 'e7e5', 'g1f3']);
+  const [e4 = -1, e5 = -1, nf3 = -1] = main.ids;
+  const side = playLine(main.tree, e4, ['c7c5', 'g1f3']);
+  const [c5 = -1, nf3AfterC5 = -1] = side.ids;
+  const nested = playLine(side.tree, c5, ['b1c3']);
+  const [nc3 = -1] = nested.ids;
+  const full = playLine(nested.tree, e4, ['e7e6']);
+  const [e6 = -1] = full.ids;
+  const tree = full.tree;
+
+  it('isInMainLine follows first continuations from the start', () => {
+    expect([tree.root, e4, e5, nf3].map((id) => isInMainLine(tree, id))).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect([c5, nf3AfterC5, nc3, e6].map((id) => isInMainLine(tree, id))).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('promoteToMainLine reorders every branch point above, keeping other orders', () => {
+    const promoted = promoteToMainLine(tree, nc3);
+    expect(getNode(promoted, e4).children).toEqual([c5, e5, e6]);
+    expect(getNode(promoted, c5).children).toEqual([nc3, nf3AfterC5]);
+    expect(mainLine(promoted, promoted.root)).toEqual([e4, c5, nc3]);
+    expect(isInMainLine(promoted, nc3)).toBe(true);
+    // The original tree is unchanged.
+    expect(getNode(tree, e4).children).toEqual([e5, c5, e6]);
+  });
+
+  it('promoteToMainLine returns the same tree for a main-line move', () => {
+    expect(promoteToMainLine(tree, nf3)).toBe(tree);
+    expect(promoteToMainLine(tree, tree.root)).toBe(tree);
+  });
+
+  it('deleteSubtree removes a side line with everything after it', () => {
+    const result = deleteSubtree(tree, c5);
+    expect(result.parent).toBe(e4);
+    expect(getNode(result.tree, e4).children).toEqual([e5, e6]);
+    for (const gone of [c5, nf3AfterC5, nc3]) expect(result.tree.nodes.has(gone)).toBe(false);
+    expect(result.tree.nodes.size).toBe(tree.nodes.size - 3);
+    expect(mainLine(result.tree, result.tree.root)).toEqual([e4, e5, nf3]);
+  });
+
+  it('deleteSubtree on the main line lets the next line take over', () => {
+    const result = deleteSubtree(tree, e5);
+    expect(getNode(result.tree, e4).children).toEqual([c5, e6]);
+    expect(mainLine(result.tree, result.tree.root)).toEqual([e4, c5, nf3AfterC5]);
+    expect(result.tree.nodes.has(nf3)).toBe(false);
+  });
+
+  it('deleteSubtree refuses the start position', () => {
+    expect(() => deleteSubtree(tree, tree.root)).toThrow(RangeError);
   });
 });

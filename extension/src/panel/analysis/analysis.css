@@ -79,3 +79,52 @@
 .line-move:focus-visible {
   background: color-mix(in srgb, currentColor 15%, transparent);
 }
+
+.moves {
+  max-width: 480px;
+  margin-top: 12px;
+}
+
+.moves h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+/* The whole tree: main line, side lines in parentheses. Scrolls when long. */
+.move-list {
+  max-height: 10rem;
+  margin: 0 0 6px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.move-list-move {
+  padding: 0 2px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.move-list-move.side-line,
+.move-list-paren {
+  opacity: 0.7;
+}
+
+.move-list-move:hover,
+.move-list-move:focus-visible {
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.move-list-move[aria-current='true'] {
+  background: color-mix(in srgb, #3b82f6 30%, transparent);
+  opacity: 1;
+}
+
+.move-actions {
+  display: flex;
+  gap: 8px;
+}

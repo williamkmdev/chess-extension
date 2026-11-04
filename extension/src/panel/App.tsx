@@ -13,6 +13,7 @@ import {
 } from '../shared/position';
 import { AnalysisPanel } from './analysis/AnalysisPanel';
 import { MoveComparison } from './analysis/MoveComparison';
+import { MoveList } from './analysis/MoveList';
 import { PromotionPicker } from './analysis/PromotionPicker';
 import { ANALYSIS_DEPTH, useAnalysis } from './analysis/useAnalysis';
 import { useExplorer } from './analysis/useExplorer';
@@ -99,7 +100,7 @@ export function App({ createTransport }: AppProps = {}) {
     },
   });
 
-  // Arrow keys step through the moves while exploring.
+  // Arrow keys step through the moves while exploring; Home and End jump to the ends.
   const keys = useRef({ exploring: false, explorer });
   keys.current = { exploring: exploring !== null, explorer };
   useEffect(() => {
@@ -117,6 +118,8 @@ export function App({ createTransport }: AppProps = {}) {
       }
       if (event.key === 'ArrowLeft') current.back();
       else if (event.key === 'ArrowRight') current.forward();
+      else if (event.key === 'Home') current.goToStart();
+      else if (event.key === 'End') current.goToEnd();
       else return;
       event.preventDefault();
     };
@@ -178,6 +181,26 @@ export function App({ createTransport }: AppProps = {}) {
               Edit position
             </button>
           </div>
+          {explorer.tree && explorer.current !== null && (
+            <MoveList tree={explorer.tree} current={explorer.current} onSelect={explorer.goToNode}>
+              <div class="move-actions">
+                <button
+                  type="button"
+                  disabled={explorer.inMainLine}
+                  onClick={explorer.makeMainLine}
+                >
+                  Make main line
+                </button>
+                <button
+                  type="button"
+                  disabled={!explorer.canGoBack}
+                  onClick={explorer.deleteFromHere}
+                >
+                  Delete from here
+                </button>
+              </div>
+            </MoveList>
+          )}
           <section class="confirm" aria-label="Current position">
             <ConfirmedFen key={toFen(exploring)} position={exploring} />
           </section>

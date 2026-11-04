@@ -201,3 +201,54 @@ export function mainLine(tree: MoveTree, id: NodeId): NodeId[] {
   }
   return line;
 }
+
+/** Whether `id` is on the main line: each move on its path is its parent's first child. */
+export function isInMainLine(tree: MoveTree, id: NodeId): boolean {
+  const path = pathTo(tree, id);
+  return path.every((nodeId, index) => {
+    const parentId = path[index - 1];
+    return parentId === undefined || getNode(tree, parentId).children[0] === nodeId;
+  });
+}
+
+/**
+ * Makes the line through `id` the main line: at every branch point above it, the move
+ * leading towards `id` becomes the first continuation. Other continuations keep their
+ * order. Returns the same tree if it already was the main line.
+ */
+export function promoteToMainLine(tree: MoveTree, id: NodeId): MoveTree {
+  const path = pathTo(tree, id);
+  let nodes: Map<NodeId, MoveNode> | null = null;
+  for (let index = 1; index < path.length; index += 1) {
+    const childId = path[index];
+    const parentId = path[index - 1];
+    if (childId === undefined || parentId === undefined) continue;
+    const parent = getNode(tree, parentId);
+    if (parent.children[0] === childId) continue;
+    nodes ??= new Map(tree.nodes);
+    nodes.set(parentId, {
+      ...parent,
+      children: [childId, ...parent.children.filter((other) => other !== childId)],
+    });
+  }
+  return nodes ? { ...tree, nodes } : tree;
+}
+
+/**
+ * Removes the move `id` and everything after it (including all its side lines).
+ * Returns the new tree and the move before it. The start position can't be deleted.
+ */
+export function deleteSubtree(tree: MoveTree, id: NodeId): { tree: MoveTree; parent: NodeId } {
+  const node = getNode(tree, id);
+  if (node.parent === null) throw new RangeError('The start position cannot be deleted');
+  const parent = getNode(tree, node.parent);
+
+  const nodes = new Map(tree.nodes);
+  const pending: NodeId[] = [id];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    pending.push(...getNode(tree, next).children);
+    nodes.delete(next);
+  }
+  nodes.set(parent.id, { ...parent, children: parent.children.filter((child) => child !== id) });
+  return { tree: { ...tree, nodes }, parent: parent.id };
+}
