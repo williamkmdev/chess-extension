@@ -5,6 +5,8 @@
 // extension's toolbar icon on it (that's also what opens the panel). It ends when that
 // tab navigates to another site, so capturing then needs another click on the icon.
 
+import type { Rect } from './crop';
+
 /** Takes the screenshot; resolves to a PNG data URL. Injectable for tests. */
 export type CaptureVisibleTab = () => Promise<string>;
 
@@ -14,6 +16,12 @@ export const captureWithChrome: CaptureVisibleTab = () =>
 export interface Screenshot {
   /** PNG image as a data URL. */
   readonly dataUrl: string;
+  /** The part selected as the board, if it was cropped. */
+  readonly crop?: {
+    /** In the screenshot's pixels. */
+    readonly rect: Rect;
+    readonly dataUrl: string;
+  };
 }
 
 export type CaptureResult =

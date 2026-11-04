@@ -7,7 +7,8 @@
   margin-top: 0;
 }
 
-.capture-status {
+.capture-status,
+.crop-hint {
   margin: 4px 0;
   font-size: 0.85rem;
   opacity: 0.75;
@@ -27,4 +28,64 @@
   width: 100%;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
   border-radius: 4px;
+}
+
+/* Selecting the board: the screenshot with a selection box over it. */
+.crop-area {
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+  border-radius: 4px;
+  cursor: crosshair;
+  user-select: none;
+  /* Drags select instead of scrolling the panel on touch screens. */
+  touch-action: none;
+}
+
+.crop-area img {
+  display: block;
+  width: 100%;
+  pointer-events: none;
+}
+
+.crop-selection {
+  position: absolute;
+  outline: 2px solid #3b82f6;
+  /* Dims everything outside the selection. */
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 45%);
+  cursor: move;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 7.875px;
+  height: 7.875px;
+  border: 1.125px solid #fff;
+  border-radius: 50%;
+  background: #3b82f6;
+  transform: translate(-50%, -50%);
+}
+
+.crop-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.crop-handle-ne {
+  top: 0;
+  left: 100%;
+  cursor: nesw-resize;
+}
+
+.crop-handle-sw {
+  top: 100%;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.crop-handle-se {
+  top: 100%;
+  left: 100%;
+  cursor: nwse-resize;
 }

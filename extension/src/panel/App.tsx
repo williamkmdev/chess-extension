@@ -21,6 +21,7 @@ import { usePlayVsEngine, type PlayStatus } from './analysis/usePlayVsEngine';
 import { Board } from './board/Board';
 import { CapturePanel } from './capture/CapturePanel';
 import { captureWithChrome, type CaptureVisibleTab, type Screenshot } from './capture/captureTab';
+import { cropWithCanvas, type CropImage } from './capture/cropImage';
 import { pieceImage } from './board/pieceImages';
 import { useDragPiece } from './board/useDragPiece';
 import { ConfirmedFen, ConfirmPanel } from './editor/ConfirmPanel';
@@ -39,6 +40,8 @@ export interface AppProps {
   readonly createTransport?: () => EngineTransport;
   /** Screenshot of the visible tab; tests pass a fake. Defaults to chrome.tabs. */
   readonly captureVisibleTab?: CaptureVisibleTab;
+  /** Crops the screenshot; tests pass a fake. Defaults to a canvas. */
+  readonly cropImage?: CropImage;
 }
 
 const COLOR_NAMES: Readonly<Record<Color, string>> = { w: 'White', b: 'Black' };
@@ -57,7 +60,11 @@ function turnText(sideToMove: Color, playing: Color | null, status: PlayStatus, 
  * Two modes. Set up: edit the draft and confirm it. Explore: a confirmed position on the
  * board, where only legal moves can be played and the engine analyzes the position shown.
  */
-export function App({ createTransport, captureVisibleTab = captureWithChrome }: AppProps = {}) {
+export function App({
+  createTransport,
+  captureVisibleTab = captureWithChrome,
+  cropImage = cropWithCanvas,
+}: AppProps = {}) {
   const [position, setPosition] = useState<DraftPosition>(startingPosition);
   const [orientation, setOrientation] = useState<Color>('w');
   const [tool, setTool] = useState<Tool | null>(null);
@@ -178,10 +185,8 @@ export function App({ createTransport, captureVisibleTab = captureWithChrome }: 
       <CapturePanel
         screenshot={screenshot}
         capture={captureVisibleTab}
-        onCaptured={setScreenshot}
-        onRemove={() => {
-          setScreenshot(null);
-        }}
+        cropImage={cropImage}
+        onChange={setScreenshot}
       />
       {exploring ? (
         <>
