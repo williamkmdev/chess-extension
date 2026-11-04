@@ -42,7 +42,19 @@ export function useAnalysis(
     watchdogMs = WATCHDOG_MS,
   }: AnalysisOptions = {},
 ): AnalysisState & { readonly retry: () => void } {
-  const [state, setState] = useState<AnalysisState>({ status: 'idle' });
+  // Tagged with the position it describes: when the position changes, the old result
+  // must not be shown against the new board, not even for the render before the effect
+  // below restarts the analysis.
+  const [tagged, setTagged] = useState<{
+    readonly position: ConfirmedPosition | null;
+    readonly state: AnalysisState;
+  }>({ position: null, state: { status: 'idle' } });
+  const state: AnalysisState =
+    tagged.position === position
+      ? tagged.state
+      : position
+        ? { status: 'analyzing', update: null }
+        : { status: 'idle' };
   // Bumped by Retry to rerun the analysis effect with a fresh engine.
   const [attempt, setAttempt] = useState(0);
   const engine = useRef<Promise<Engine> | null>(null);
@@ -66,6 +78,9 @@ export function useAnalysis(
   };
 
   useEffect(() => {
+    const setState = (next: AnalysisState) => {
+      setTagged({ position, state: next });
+    };
     if (!position) {
       setState({ status: 'idle' });
       return;
