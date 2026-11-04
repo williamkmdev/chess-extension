@@ -1257,7 +1257,8 @@ describe('engine analysis', () => {
 
 describe('screenshot', () => {
   const PNG = 'data:image/png;base64,iVBORw0KGgo=';
-  const shown = () => container.querySelector<HTMLImageElement>('.screenshot img');
+  /** The screenshot, whether shown on its own or being cropped. */
+  const shown = () => container.querySelector<HTMLImageElement>('.screenshot img, .crop-area img');
   const alertText = () => container.querySelector('.capture-error')?.textContent ?? null;
 
   /** Click Capture and let the capture's promise settle. */
@@ -1350,5 +1351,199 @@ describe('screenshot', () => {
     await click(button('Remove screenshot'));
     expect(shown()).toBeNull();
     expect(button('Capture tab')).toBeTruthy();
+  });
+});
+
+describe('cropping the screenshot', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+  const CROPPED = 'data:image/png;base64,cropped';
+  let cropImage: ReturnType<typeof vi.fn<(dataUrl: string, rect: unknown) => Promise<string>>>;
+
+  const cropArea = () => {
+    const el = container.querySelector<HTMLElement>('.crop-area');
+    if (!el) throw new Error('Not cropping');
+    return el;
+  };
+  const selectionBox = () => container.querySelector<HTMLElement>('.crop-selection');
+  const result = () => container.querySelector<HTMLImageElement>('.screenshot img');
+
+  beforeEach(async () => {
+    cropImage = vi.fn(() => Promise.resolve(CROPPED));
+    await act(() => {
+      render(null, container);
+    });
+    await act(() => {
+      render(
+        <App captureVisibleTab={() => Promise.resolve(PNG)} cropImage={cropImage} />,
+        container,
+      );
+    });
+    await click(button('Capture tab'));
+    await act(async () => {
+      for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    });
+    await prepareImage();
+  });
+
+  /** The image: 2000×1000 pixels, shown as 400×200 at (10, 20). */
+  async function prepareImage() {
+    const image = cropArea().querySelector('img');
+    if (!image) throw new Error('No image');
+    Object.defineProperty(image, 'naturalWidth', { value: 2000 });
+    Object.defineProperty(image, 'naturalHeight', { value: 1000 });
+    vi.spyOn(image, 'getBoundingClientRect').mockReturnValue({
+      left: 10,
+      top: 20,
+      width: 400,
+      height: 200,
+      right: 410,
+      bottom: 220,
+      x: 10,
+      y: 20,
+      toJSON: () => ({}),
+    });
+    await act(() => {
+      image.dispatchEvent(new Event('load'));
+    });
+  }
+
+  /** Press on `target` at screen (x1, y1), drag to (x2, y2) and release. */
+  async function drag(target: Element, x1: number, y1: number, x2: number, y2: number, id = 1) {
+    await act(() => {
+      pointer('pointerdown', target, x1, y1, id);
+      pointer('pointermove', window, x2, y2, id);
+      pointer('pointerup', window, x2, y2, id);
+    });
+  }
+
+  async function cropNow() {
+    await click(button('Crop'));
+    await act(async () => {
+      for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    });
+  }
+
+  it('opens right after a capture, with Crop waiting for a selection', () => {
+    expect(container.querySelector('.crop')?.textContent).toContain('Drag over the board');
+    expect(button('Crop').disabled).toBe(true);
+    expect(labeledInput('Square').checked).toBe(true);
+  });
+
+  it('crops the dragged square, in the screenshot’s own pixels', async () => {
+    // Screen (60, 40) → image (250, 100); a 100×60 screen drag → a 500 px square.
+    await drag(cropArea(), 60, 40, 160, 100);
+    expect(selectionBox()?.style.width).toBe('25%');
+    expect(selectionBox()?.style.height).toBe('50%');
+    await cropNow();
+    expect(cropImage).toHaveBeenCalledWith(PNG, { x: 250, y: 100, width: 500, height: 500 });
+    expect(result()?.getAttribute('src')).toBe(CROPPED);
+    expect(container.querySelector('.crop-area')).toBeNull();
+  });
+
+  it('draws any rectangle with Square off', async () => {
+    await click(labeledInput('Square'));
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    expect(cropImage).toHaveBeenCalledWith(PNG, { x: 250, y: 100, width: 500, height: 300 });
+  });
+
+  it('moves the selection and resizes it by a corner', async () => {
+    await click(labeledInput('Square'));
+    await drag(cropArea(), 60, 40, 160, 100);
+    const box = selectionBox();
+    if (!box) throw new Error('No selection');
+    // Move right by 20 screen px (100 image px).
+    await drag(box, 100, 60, 120, 60);
+    // Then drag the bottom-right corner (now at image (850, 400)) to image (900, 450).
+    const corner = box.querySelector('[data-corner="se"]');
+    if (!corner) throw new Error('No corner');
+    await drag(corner, 180, 100, 190, 110);
+    await cropNow();
+    expect(cropImage).toHaveBeenCalledWith(PNG, { x: 350, y: 100, width: 550, height: 350 });
+  });
+
+  it('ignores a second pointer while one is dragging', async () => {
+    await click(labeledInput('Square'));
+    await act(() => {
+      pointer('pointerdown', cropArea(), 60, 40, 1);
+      pointer('pointermove', window, 160, 100, 1);
+      pointer('pointerdown', cropArea(), 300, 150, 2);
+      pointer('pointermove', window, 400, 200, 2);
+      pointer('pointerup', window, 160, 100, 1);
+    });
+    await cropNow();
+    expect(cropImage).toHaveBeenCalledWith(PNG, { x: 250, y: 100, width: 500, height: 300 });
+  });
+
+  it('does not start a selection from a click without a drag', async () => {
+    await drag(cropArea(), 60, 40, 61, 41);
+    expect(selectionBox()).toBeNull();
+  });
+
+  it('crops again from the previous selection, or uses the whole screenshot', async () => {
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    await click(button('Crop again'));
+    await prepareImage();
+    expect(selectionBox()).not.toBeNull();
+
+    await click(button('Use whole screenshot'));
+    expect(result()?.getAttribute('src')).toBe(PNG);
+    expect(button('Crop')).toBeTruthy();
+  });
+
+  it('ignores a crop still being made once the whole screenshot is chosen', async () => {
+    let finish: (url: string) => void = () => undefined;
+    cropImage.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await drag(cropArea(), 60, 40, 160, 100);
+    await click(button('Crop'));
+    await click(button('Use whole screenshot'));
+    await act(async () => {
+      finish(CROPPED);
+      await Promise.resolve();
+    });
+    expect(result()?.getAttribute('src')).toBe(PNG);
+  });
+
+  it('drops a crop of the old screenshot once a new capture arrives', async () => {
+    let finishCrop: (url: string) => void = () => undefined;
+    cropImage.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          finishCrop = resolve;
+        }),
+    );
+    await drag(cropArea(), 60, 40, 160, 100);
+    // Capture again (resolves on the next microtasks), and Crop before it arrives.
+    await act(() => {
+      button('Capture again').click();
+      button('Crop').click();
+    });
+    await act(async () => {
+      for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    });
+    await act(async () => {
+      finishCrop(CROPPED);
+      await Promise.resolve();
+    });
+    // The new screenshot is waiting to be cropped; the old crop wasn't applied.
+    expect(container.querySelector('.crop-area')).not.toBeNull();
+    expect(result()).toBeNull();
+  });
+
+  it('starts over with a new capture', async () => {
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    await click(button('Capture again'));
+    await act(async () => {
+      for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    });
+    expect(container.querySelector('.crop-area')).not.toBeNull();
+    expect(selectionBox()).toBeNull();
   });
 });
