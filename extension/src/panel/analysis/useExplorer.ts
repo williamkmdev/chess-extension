@@ -72,6 +72,10 @@ export function useExplorer() {
   return {
     /** The position on the board; null when not exploring. */
     position,
+    /** The position before the move that led here; null at the start of the tree. */
+    previous: state && node?.parent != null ? getNode(state.tree, node.parent).position : null,
+    /** The move that led here; null at the start of the tree. */
+    move: node?.move ?? null,
     /** What the board shows: the position, or a preview while a promotion is pending. */
     board,
     tree: state?.tree ?? null,

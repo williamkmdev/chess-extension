@@ -12,6 +12,7 @@ import {
   type Square,
 } from '../shared/position';
 import { AnalysisPanel } from './analysis/AnalysisPanel';
+import { MoveComparison } from './analysis/MoveComparison';
 import { PromotionPicker } from './analysis/PromotionPicker';
 import { ANALYSIS_DEPTH, useAnalysis } from './analysis/useAnalysis';
 import { useExplorer } from './analysis/useExplorer';
@@ -53,7 +54,13 @@ export function App({ createTransport }: AppProps = {}) {
   // has changed since they were computed.
   const errors = failure?.draft === position ? failure.errors : null;
   // The engine follows the position on the board while exploring; leaving stops it.
-  const analysis = useAnalysis(exploring, createTransport ? { createTransport } : undefined);
+  // The position before the last move is searched too, to compare that move with the
+  // engine's choice there.
+  const analysis = useAnalysis(
+    exploring,
+    explorer.previous,
+    createTransport ? { createTransport } : undefined,
+  );
   const highlightedSquares =
     errors?.flatMap((error) => ('squares' in error ? (error.squares ?? []) : [])) ?? [];
 
@@ -147,6 +154,15 @@ export function App({ createTransport }: AppProps = {}) {
           <section class="confirm" aria-label="Current position">
             <ConfirmedFen key={toFen(exploring)} position={exploring} />
           </section>
+          {explorer.move && explorer.previous && (
+            <MoveComparison
+              move={explorer.move}
+              before={explorer.previous}
+              after={exploring}
+              beforeResult={analysis.completed(explorer.previous)}
+              afterResult={analysis.completed(exploring)}
+            />
+          )}
           <AnalysisPanel
             position={exploring}
             analysis={analysis}

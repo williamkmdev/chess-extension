@@ -11,7 +11,7 @@ let transport: FakeTransport | null = null;
 const createTransport = () => (transport = new FakeTransport());
 
 function Probe({ position }: { position: ConfirmedPosition | null }) {
-  const analysis = useAnalysis(position, { createTransport });
+  const analysis = useAnalysis(position, null, { createTransport });
   const update = 'update' in analysis ? analysis.update : null;
   return (
     <p>
