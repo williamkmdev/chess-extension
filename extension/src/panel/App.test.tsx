@@ -4,6 +4,7 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeTransport } from '../engine/testing';
 import { App } from './App';
+import type { FindBoard } from './capture/findBoard';
 
 const container = document.createElement('div');
 /** The fake engines the app created, in order (Retry creates a new one). */
@@ -32,6 +33,12 @@ afterEach(() => {
   render(null, container);
   container.remove();
 });
+
+/** A board locator that never finds a board. */
+const notFound: FindBoard = () => Promise.resolve({ ok: false, reason: 'no-grid' });
+/** A board locator result with the board at `rect`. */
+const found = (rect: { x: number; y: number; width: number; height: number }) =>
+  ({ ok: true, rect, coverage: 0.9 }) as const;
 
 const square = (name: string) => {
   const el = container.querySelector<HTMLElement>(`[data-square="${name}"]`);
@@ -1265,7 +1272,7 @@ describe('screenshot', () => {
   async function capture(name = 'Capture tab') {
     await click(button(name));
     await act(async () => {
-      for (let i = 0; i < 3; i += 1) await Promise.resolve();
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
     });
   }
 
@@ -1274,7 +1281,7 @@ describe('screenshot', () => {
       render(null, container);
     });
     await act(() => {
-      render(<App captureVisibleTab={capture} />, container);
+      render(<App captureVisibleTab={capture} findBoard={notFound} />, container);
     });
   }
 
@@ -1287,7 +1294,7 @@ describe('screenshot', () => {
     await capture();
     expect(fake).toHaveBeenCalledTimes(1);
     expect(shown()?.getAttribute('src')).toBe(PNG);
-    expect(button('Capture again')).toBeTruthy();
+    expect(button('Capture tab')).toBeTruthy();
   });
 
   it('shows that it is capturing, and blocks a second click meanwhile', async () => {
@@ -1304,7 +1311,7 @@ describe('screenshot', () => {
 
     await act(async () => {
       finish(PNG);
-      await Promise.resolve();
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
     });
     expect(container.querySelector('.capture-status')).toBeNull();
     expect(shown()).not.toBeNull();
@@ -1322,7 +1329,7 @@ describe('screenshot', () => {
           });
     });
     await capture();
-    await click(button('Capture again'));
+    await click(button('Capture tab'));
     await click(button('Remove screenshot'));
     await act(async () => {
       finish('data:image/png;base64,second');
@@ -1354,14 +1361,29 @@ describe('screenshot', () => {
   });
 });
 
-describe('cropping the screenshot', () => {
+const NOT_IN_SHOT = 'Board not found. Try cropping around it.';
+const NOT_IN_CROP = 'Board not found. Try cropping closer around it.';
+const noteText = () => container.querySelector('.capture-note')?.textContent ?? null;
+const outline = () => container.querySelector<HTMLElement>('.board-outline');
+const hasButton = (name: string) =>
+  [...container.querySelectorAll('button')].some((el) => el.textContent === name);
+
+/** Let pending captures, crops and board searches settle. */
+async function flush() {
+  await act(async () => {
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  });
+}
+
+describe('choosing the area to search', () => {
   const PNG = 'data:image/png;base64,iVBORw0KGgo=';
   const CROPPED = 'data:image/png;base64,cropped';
   let cropImage: ReturnType<typeof vi.fn<(dataUrl: string, rect: unknown) => Promise<string>>>;
+  let findBoard: ReturnType<typeof vi.fn<FindBoard>>;
 
   const cropArea = () => {
     const el = container.querySelector<HTMLElement>('.crop-area');
-    if (!el) throw new Error('Not cropping');
+    if (!el) throw new Error('Not selecting');
     return el;
   };
   const selectionBox = () => container.querySelector<HTMLElement>('.crop-selection');
@@ -1369,21 +1391,29 @@ describe('cropping the screenshot', () => {
 
   beforeEach(async () => {
     cropImage = vi.fn(() => Promise.resolve(CROPPED));
+    findBoard = vi.fn(notFound);
     await act(() => {
       render(null, container);
     });
     await act(() => {
       render(
-        <App captureVisibleTab={() => Promise.resolve(PNG)} cropImage={cropImage} />,
+        <App
+          captureVisibleTab={() => Promise.resolve(PNG)}
+          cropImage={cropImage}
+          findBoard={findBoard}
+        />,
         container,
       );
     });
     await click(button('Capture tab'));
-    await act(async () => {
-      for (let i = 0; i < 3; i += 1) await Promise.resolve();
-    });
-    await prepareImage();
+    await flush();
+    await openCrop();
   });
+
+  async function openCrop() {
+    await click(button('Crop'));
+    await prepareImage();
+  }
 
   /** The image: 2000×1000 pixels, shown as 400×200 at (10, 20). */
   async function prepareImage() {
@@ -1418,26 +1448,46 @@ describe('cropping the screenshot', () => {
 
   async function cropNow() {
     await click(button('Crop'));
-    await act(async () => {
-      for (let i = 0; i < 3; i += 1) await Promise.resolve();
-    });
+    await flush();
   }
 
-  it('opens right after a capture, with Crop waiting for a selection', () => {
-    expect(container.querySelector('.crop')?.textContent).toContain('Drag over the board');
+  it('opens on Crop, with Crop waiting for a selection', () => {
+    expect(container.querySelector('.crop')?.textContent).toContain('Drag a box around the board');
     expect(button('Crop').disabled).toBe(true);
     expect(labeledInput('Square').checked).toBe(true);
+    // Only the selection's own Crop button; the toolbar's is hidden meanwhile.
+    expect(
+      [...container.querySelectorAll('button')].filter((el) => el.textContent === 'Crop'),
+    ).toHaveLength(1);
   });
 
-  it('crops the dragged square, in the screenshot’s own pixels', async () => {
+  it('searches the dragged square, in the screenshot’s own pixels, and shows it', async () => {
     // Screen (60, 40) → image (250, 100); a 100×60 screen drag → a 500 px square.
     await drag(cropArea(), 60, 40, 160, 100);
     expect(selectionBox()?.style.width).toBe('25%');
     expect(selectionBox()?.style.height).toBe('50%');
     await cropNow();
+    expect(findBoard).toHaveBeenLastCalledWith(PNG, { x: 250, y: 100, width: 500, height: 500 });
     expect(cropImage).toHaveBeenCalledWith(PNG, { x: 250, y: 100, width: 500, height: 500 });
     expect(result()?.getAttribute('src')).toBe(CROPPED);
     expect(container.querySelector('.crop-area')).toBeNull();
+    expect(noteText()).toBe(NOT_IN_CROP);
+    expect(outline()).toBeNull();
+  });
+
+  it('outlines the board found in the area, leaving the crop as drawn', async () => {
+    findBoard.mockResolvedValueOnce(found({ x: 300, y: 150, width: 400, height: 400 }));
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    expect(cropImage).toHaveBeenCalledTimes(1);
+    expect(cropImage).toHaveBeenCalledWith(PNG, { x: 250, y: 100, width: 500, height: 500 });
+    expect(result()?.getAttribute('src')).toBe(CROPPED);
+    expect(noteText()).toBe('Board found.');
+    // The board is at (50, 50)–(450, 450) of the 500 px crop.
+    expect(outline()?.style.left).toBe('10%');
+    expect(outline()?.style.top).toBe('10%');
+    expect(outline()?.style.width).toBe('80%');
+    expect(outline()?.style.height).toBe('80%');
   });
 
   it('draws any rectangle with Square off', async () => {
@@ -1480,19 +1530,62 @@ describe('cropping the screenshot', () => {
     expect(selectionBox()).toBeNull();
   });
 
-  it('crops again from the previous selection, or uses the whole screenshot', async () => {
+  it('closes on Cancel, changing nothing', async () => {
+    await click(button('Cancel'));
+    expect(container.querySelector('.crop-area')).toBeNull();
+    expect(result()?.getAttribute('src')).toBe(PNG);
+    // Nothing to undo, so no Use whole screenshot.
+    expect(hasButton('Use whole screenshot')).toBe(false);
+
+    await openCrop();
     await drag(cropArea(), 60, 40, 160, 100);
     await cropNow();
-    await click(button('Crop again'));
-    await prepareImage();
-    expect(selectionBox()).not.toBeNull();
-
-    await click(button('Use whole screenshot'));
-    expect(result()?.getAttribute('src')).toBe(PNG);
-    expect(button('Crop')).toBeTruthy();
+    await openCrop();
+    await click(button('Cancel'));
+    expect(result()?.getAttribute('src')).toBe(CROPPED);
+    expect(cropImage).toHaveBeenCalledTimes(1);
+    expect(findBoard).toHaveBeenCalledTimes(2);
   });
 
-  it('ignores a crop still being made once the whole screenshot is chosen', async () => {
+  it('starts again from the previous selection, and drops it with Use whole screenshot', async () => {
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    await openCrop();
+    expect(selectionBox()).not.toBeNull();
+    await click(button('Cancel'));
+
+    await click(button('Use whole screenshot'));
+    await flush();
+    expect(result()?.getAttribute('src')).toBe(PNG);
+    expect(hasButton('Use whole screenshot')).toBe(false);
+    // The board is looked for in the whole screenshot again.
+    expect(findBoard).toHaveBeenLastCalledWith(PNG);
+    expect(noteText()).toBe(NOT_IN_SHOT);
+  });
+
+  it('shows that it is searching while cropping', async () => {
+    cropImage.mockImplementationOnce(() => new Promise<string>(() => undefined));
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    expect(container.querySelector('.capture-status')?.textContent).toBe('Finding the board…');
+    expect(noteText()).toBeNull();
+  });
+
+  it('reports a crop that failed', async () => {
+    cropImage.mockRejectedValueOnce(new Error('decode failed'));
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    expect(container.querySelector('.capture-error')?.textContent).toBe(
+      'Couldn’t crop the screenshot: decode failed',
+    );
+    expect(container.querySelector('.capture-status')).toBeNull();
+    expect(result()?.getAttribute('src')).toBe(PNG);
+  });
+
+  it('ignores an area still being cropped once the whole screenshot is chosen', async () => {
+    await drag(cropArea(), 60, 40, 160, 100);
+    await cropNow();
+    await openCrop();
     let finish: (url: string) => void = () => undefined;
     cropImage.mockImplementationOnce(
       () =>
@@ -1500,17 +1593,18 @@ describe('cropping the screenshot', () => {
           finish = resolve;
         }),
     );
-    await drag(cropArea(), 60, 40, 160, 100);
+    await drag(cropArea(), 20, 30, 120, 90);
     await click(button('Crop'));
     await click(button('Use whole screenshot'));
     await act(async () => {
-      finish(CROPPED);
-      await Promise.resolve();
+      finish('data:image/png;base64,second-crop');
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
     });
     expect(result()?.getAttribute('src')).toBe(PNG);
+    expect(noteText()).toBe(NOT_IN_SHOT);
   });
 
-  it('drops a crop of the old screenshot once a new capture arrives', async () => {
+  it('drops an area of the old screenshot once a new capture arrives', async () => {
     let finishCrop: (url: string) => void = () => undefined;
     cropImage.mockImplementationOnce(
       () =>
@@ -1519,31 +1613,147 @@ describe('cropping the screenshot', () => {
         }),
     );
     await drag(cropArea(), 60, 40, 160, 100);
-    // Capture again (resolves on the next microtasks), and Crop before it arrives.
+    // Capture tab (resolves on the next microtasks), and Crop before it arrives.
     await act(() => {
-      button('Capture again').click();
+      button('Capture tab').click();
       button('Crop').click();
     });
-    await act(async () => {
-      for (let i = 0; i < 3; i += 1) await Promise.resolve();
-    });
+    await flush();
     await act(async () => {
       finishCrop(CROPPED);
-      await Promise.resolve();
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
     });
-    // The new screenshot is waiting to be cropped; the old crop wasn't applied.
-    expect(container.querySelector('.crop-area')).not.toBeNull();
-    expect(result()).toBeNull();
+    expect(result()?.getAttribute('src')).toBe(PNG);
+    expect(noteText()).toBe(NOT_IN_SHOT);
   });
 
   it('starts over with a new capture', async () => {
     await drag(cropArea(), 60, 40, 160, 100);
     await cropNow();
-    await click(button('Capture again'));
-    await act(async () => {
-      for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    await click(button('Capture tab'));
+    await flush();
+    expect(container.querySelector('.crop-area')).toBeNull();
+    expect(result()?.getAttribute('src')).toBe(PNG);
+    expect(hasButton('Use whole screenshot')).toBe(false);
+  });
+});
+
+describe('finding the board after a capture', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+  const BOARD = { x: 100, y: 50, width: 400, height: 400 };
+  const status = () => container.querySelector('.capture-status')?.textContent ?? null;
+  let cropImage: ReturnType<typeof vi.fn<(dataUrl: string, rect: unknown) => Promise<string>>>;
+
+  async function renderWith(findBoard: FindBoard) {
+    cropImage = vi.fn(() => Promise.resolve('data:image/png;base64,cropped'));
+    await act(() => {
+      render(null, container);
     });
-    expect(container.querySelector('.crop-area')).not.toBeNull();
-    expect(selectionBox()).toBeNull();
+    await act(() => {
+      render(
+        <App
+          captureVisibleTab={() => Promise.resolve(PNG)}
+          cropImage={cropImage}
+          findBoard={findBoard}
+        />,
+        container,
+      );
+    });
+  }
+
+  /** The shown screenshot: 1000×500 pixels. */
+  async function loadImage() {
+    const image = container.querySelector('.screenshot img');
+    if (!image) throw new Error('No screenshot');
+    Object.defineProperty(image, 'naturalWidth', { value: 1000 });
+    Object.defineProperty(image, 'naturalHeight', { value: 500 });
+    await act(() => {
+      image.dispatchEvent(new Event('load'));
+    });
+  }
+
+  it('shows the screenshot and outlines the board it finds', async () => {
+    await renderWith(() => Promise.resolve(found(BOARD)));
+    await click(button('Capture tab'));
+    await flush();
+    await loadImage();
+    expect(noteText()).toBe('Board found.');
+    expect(cropImage).not.toHaveBeenCalled();
+    expect(container.querySelector('.screenshot img')?.getAttribute('src')).toBe(PNG);
+    expect(container.querySelector('.crop-area')).toBeNull();
+    expect(outline()?.style.left).toBe('10%');
+    expect(outline()?.style.top).toBe('10%');
+    expect(outline()?.style.width).toBe('40%');
+    expect(outline()?.style.height).toBe('80%');
+    expect(hasButton('Crop')).toBe(true);
+    expect(hasButton('Use whole screenshot')).toBe(false);
+  });
+
+  it('says so when it finds none, with no outline', async () => {
+    await renderWith(notFound);
+    await click(button('Capture tab'));
+    await flush();
+    await loadImage();
+    expect(noteText()).toBe(NOT_IN_SHOT);
+    expect(outline()).toBeNull();
+  });
+
+  it('shows that it is looking for the board meanwhile', async () => {
+    await renderWith(() => new Promise(() => undefined));
+    await click(button('Capture tab'));
+    await flush();
+    expect(status()).toBe('Finding the board…');
+    expect(noteText()).toBeNull();
+  });
+
+  it('treats a failure to look as not found', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await renderWith(() => Promise.reject(new Error('decode failed')));
+    await click(button('Capture tab'));
+    await flush();
+    expect(noteText()).toBe(NOT_IN_SHOT);
+    expect(error).toHaveBeenCalled();
+  });
+
+  it('ignores a board found after the screenshot was removed', async () => {
+    let finish: (result: Awaited<ReturnType<FindBoard>>) => void = () => undefined;
+    await renderWith(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await click(button('Capture tab'));
+    await flush();
+    await click(button('Remove screenshot'));
+    await act(async () => {
+      finish(found(BOARD));
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(container.querySelector('.screenshot img, .crop-area img')).toBeNull();
+    expect(status()).toBeNull();
+    expect(noteText()).toBeNull();
+  });
+
+  it('ignores a board found on the previous screenshot after capturing again', async () => {
+    let finish: (result: Awaited<ReturnType<FindBoard>>) => void = () => undefined;
+    let calls = 0;
+    await renderWith(() => {
+      calls += 1;
+      return calls === 1
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : notFound('');
+    });
+    await click(button('Capture tab'));
+    await flush();
+    await click(button('Capture tab'));
+    await flush();
+    await act(async () => {
+      finish(found(BOARD));
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(noteText()).toBe(NOT_IN_SHOT);
   });
 });

@@ -22,6 +22,7 @@ import { Board } from './board/Board';
 import { CapturePanel } from './capture/CapturePanel';
 import { captureWithChrome, type CaptureVisibleTab, type Screenshot } from './capture/captureTab';
 import { cropWithCanvas, type CropImage } from './capture/cropImage';
+import { findBoardWithCanvas, type FindBoard } from './capture/findBoard';
 import { pieceImage } from './board/pieceImages';
 import { useDragPiece } from './board/useDragPiece';
 import { ConfirmedFen, ConfirmPanel } from './editor/ConfirmPanel';
@@ -42,6 +43,8 @@ export interface AppProps {
   readonly captureVisibleTab?: CaptureVisibleTab;
   /** Crops the screenshot; tests pass a fake. Defaults to a canvas. */
   readonly cropImage?: CropImage;
+  /** Finds the board on the screenshot; tests pass a fake. Defaults to a canvas. */
+  readonly findBoard?: FindBoard;
 }
 
 const COLOR_NAMES: Readonly<Record<Color, string>> = { w: 'White', b: 'Black' };
@@ -64,6 +67,7 @@ export function App({
   createTransport,
   captureVisibleTab = captureWithChrome,
   cropImage = cropWithCanvas,
+  findBoard = findBoardWithCanvas,
 }: AppProps = {}) {
   const [position, setPosition] = useState<DraftPosition>(startingPosition);
   const [orientation, setOrientation] = useState<Color>('w');
@@ -186,6 +190,7 @@ export function App({
         screenshot={screenshot}
         capture={captureVisibleTab}
         cropImage={cropImage}
+        findBoard={findBoard}
         onChange={setScreenshot}
       />
       {exploring ? (

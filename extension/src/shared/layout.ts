@@ -1,7 +1,7 @@
 // Which square appears where on screen. Orientation is UI state, not part of the
 // position: it only decides the display order of ranks and files.
 
-import { FILES, RANKS, type Color, type Square } from '../../shared/position';
+import { FILES, RANKS, type Color, type Square } from './position';
 
 /** Board rows from the top of the screen down, each row left to right. */
 export function displayRows(orientation: Color): Square[][] {

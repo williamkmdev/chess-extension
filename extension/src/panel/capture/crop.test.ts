@@ -5,6 +5,7 @@ import {
   roundRect,
   selectionFromDrag,
   toImagePoint,
+  toScreenshotRect,
   type SelectionOptions,
 } from './crop';
 
@@ -158,5 +159,22 @@ describe('roundRect', () => {
       width: 1,
       height: 5,
     });
+  });
+});
+
+describe('toScreenshotRect', () => {
+  it('moves a rect found inside a selection back into screenshot pixels', () => {
+    const found = { x: 12, y: 8, width: 480, height: 480 };
+    expect(toScreenshotRect(found, { x: 300, y: 150 })).toEqual({
+      x: 312,
+      y: 158,
+      width: 480,
+      height: 480,
+    });
+  });
+
+  it('leaves a rect found in the whole screenshot as it is', () => {
+    const found = { x: 12, y: 8, width: 480, height: 480 };
+    expect(toScreenshotRect(found, undefined)).toEqual(found);
   });
 });

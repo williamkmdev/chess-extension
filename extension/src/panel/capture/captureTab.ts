@@ -22,6 +22,12 @@ export interface Screenshot {
     readonly rect: Rect;
     readonly dataUrl: string;
   };
+  /**
+   * Where the board locator found the board in what's shown (the crop, or the whole
+   * screenshot), in the screenshot's pixels; null if it found none. Absent until it has
+   * looked.
+   */
+  readonly board?: Rect | null;
 }
 
 export type CaptureResult =

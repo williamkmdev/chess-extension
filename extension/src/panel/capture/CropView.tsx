@@ -25,9 +25,10 @@ export interface CropViewProps {
   readonly dataUrl: string;
   /** The previous selection, when cropping again. */
   readonly initial: Rect | null;
-  /** The selection to crop, in whole image pixels. */
+  /** The selection to search for the board (and crop to), in whole image pixels. */
   readonly onCrop: (rect: Rect) => void;
-  readonly onUseWhole: () => void;
+  /** Close without changing anything. */
+  readonly onCancel: () => void;
 }
 
 type Gesture =
@@ -35,7 +36,7 @@ type Gesture =
   | { readonly kind: 'move'; readonly start: Point; readonly rect: Rect }
   | { readonly kind: 'resize'; readonly corner: Corner; readonly rect: Rect };
 
-export function CropView({ dataUrl, initial, onCrop, onUseWhole }: CropViewProps) {
+export function CropView({ dataUrl, initial, onCrop, onCancel }: CropViewProps) {
   const image = useRef<HTMLImageElement>(null);
   const [natural, setNatural] = useState<Size | null>(null);
   const [selection, setSelection] = useState<Rect | null>(initial);
@@ -116,7 +117,7 @@ export function CropView({ dataUrl, initial, onCrop, onUseWhole }: CropViewProps
 
   return (
     <div class="crop">
-      <p class="crop-hint">Drag over the board to select it.</p>
+      <p class="crop-hint">Drag a box around the board to search there.</p>
       <div
         class="crop-area"
         onPointerDown={(event) => {
@@ -183,8 +184,8 @@ export function CropView({ dataUrl, initial, onCrop, onUseWhole }: CropViewProps
         >
           Crop
         </button>
-        <button type="button" onClick={onUseWhole}>
-          Use whole screenshot
+        <button type="button" onClick={onCancel}>
+          Cancel
         </button>
       </div>
     </div>
