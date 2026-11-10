@@ -119,3 +119,9 @@ export function roundRect(rect: Rect, bounds: Size): Rect {
     height: clamp(Math.round(rect.height), 1, bounds.height - y),
   };
 }
+
+/** A rect found inside `region` (in the region's own pixels), in the whole image's pixels. */
+export function toScreenshotRect(rect: Rect, region: Point | undefined): Rect {
+  if (!region) return rect;
+  return { ...rect, x: rect.x + region.x, y: rect.y + region.y };
+}

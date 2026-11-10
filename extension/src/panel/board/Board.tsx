@@ -4,7 +4,7 @@ import {
   type Color,
   type Square,
 } from '../../shared/position';
-import { displayRows } from './layout';
+import { displayRows } from '../../shared/layout';
 import { pieceImage, pieceName } from './pieceImages';
 import './board.css';
 

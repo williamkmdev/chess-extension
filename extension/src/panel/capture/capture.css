@@ -8,6 +8,7 @@
 }
 
 .capture-status,
+.capture-note,
 .crop-hint {
   margin: 4px 0;
   font-size: 0.85rem;
@@ -20,6 +21,7 @@
 }
 
 .screenshot {
+  position: relative;
   margin: 8px 0 0;
 }
 
@@ -30,7 +32,15 @@
   border-radius: 4px;
 }
 
-/* Selecting the board: the screenshot with a selection box over it. */
+/* Where the board was found on what's shown. */
+.board-outline {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #22c55e;
+  pointer-events: none;
+}
+
+/* Selecting the area to search: the screenshot with a selection box over it. */
 .crop-area {
   position: relative;
   overflow: hidden;
