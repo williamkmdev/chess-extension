@@ -23,12 +23,14 @@ import { CapturePanel } from './capture/CapturePanel';
 import { captureWithChrome, type CaptureVisibleTab, type Screenshot } from './capture/captureTab';
 import { cropWithCanvas, type CropImage } from './capture/cropImage';
 import { findBoardWithCanvas, type FindBoard } from './capture/findBoard';
+import { recognizeWithOnnx, type Recognize } from './capture/recognize';
 import { pieceImage } from './board/pieceImages';
 import { useDragPiece } from './board/useDragPiece';
 import { ConfirmedFen, ConfirmPanel } from './editor/ConfirmPanel';
 import { FenImport } from './editor/FenImport';
 import { Palette, type Tool } from './editor/Palette';
 import { PositionDetails } from './editor/PositionDetails';
+import { positionFromReadings, type TileReading } from '../vision/classify';
 
 interface FailedConfirmation {
   /** The exact draft these errors were computed for. */
@@ -45,6 +47,15 @@ export interface AppProps {
   readonly cropImage?: CropImage;
   /** Finds the board on the screenshot; tests pass a fake. Defaults to a canvas. */
   readonly findBoard?: FindBoard;
+  /** Reads the pieces on the board found; tests pass a fake. Defaults to the ONNX model. */
+  readonly recognize?: Recognize;
+}
+
+/** The pieces last read from a screenshot, and the draft they were loaded as. */
+interface Recognized {
+  readonly readings: readonly TileReading[];
+  /** The exact draft loaded; while it's still the position, nothing has been edited. */
+  readonly draft: DraftPosition;
 }
 
 const COLOR_NAMES: Readonly<Record<Color, string>> = { w: 'White', b: 'Black' };
@@ -68,6 +79,7 @@ export function App({
   captureVisibleTab = captureWithChrome,
   cropImage = cropWithCanvas,
   findBoard = findBoardWithCanvas,
+  recognize = recognizeWithOnnx,
 }: AppProps = {}) {
   const [position, setPosition] = useState<DraftPosition>(startingPosition);
   const [orientation, setOrientation] = useState<Color>('w');
@@ -75,6 +87,7 @@ export function App({
   const [failure, setFailure] = useState<FailedConfirmation | null>(null);
   /** The latest screenshot, in memory only. */
   const [screenshot, setScreenshot] = useState<Screenshot | null>(null);
+  const [recognized, setRecognized] = useState<Recognized | null>(null);
   /** Play vs Stockfish: Stockfish takes the side to move (so it moves first). */
   const [stockfishFirst, setStockfishFirst] = useState(false);
   const explorer = useExplorer();
@@ -172,11 +185,24 @@ export function App({
   const targetsFrom = (from: Square | null) =>
     from ? (explorer.moves.get(from) ?? []).map((target) => target.to) : [];
 
+  /** Loads the pieces read from a screenshot, seen with `side` at the bottom. */
+  const loadRecognized = (readings: readonly TileReading[], side: Color) => {
+    const draft = withAssumedCastling(positionFromReadings(readings, side));
+    setPosition(draft);
+    setRecognized({ readings, draft });
+  };
+
   const flipButton = (
     <button
       type="button"
       onClick={() => {
-        setOrientation((current) => (current === 'w' ? 'b' : 'w'));
+        const flipped = orientation === 'w' ? 'b' : 'w';
+        setOrientation(flipped);
+        // A recognized position nobody has edited yet is read again from the other side:
+        // the screenshot was taken with the other color at the bottom.
+        if (!exploring && recognized?.draft === position) {
+          loadRecognized(recognized.readings, flipped);
+        }
       }}
     >
       Flip board
@@ -186,13 +212,22 @@ export function App({
   return (
     <>
       <h1>Chess Position Explorer</h1>
-      <CapturePanel
-        screenshot={screenshot}
-        capture={captureVisibleTab}
-        cropImage={cropImage}
-        findBoard={findBoard}
-        onChange={setScreenshot}
-      />
+      {/* The screenshot is for setting up the position, so it's hidden while exploring the
+          confirmed one; Edit position brings it back as it was. */}
+      {!exploring && (
+        <CapturePanel
+          screenshot={screenshot}
+          position={position}
+          capture={captureVisibleTab}
+          cropImage={cropImage}
+          findBoard={findBoard}
+          recognize={recognize}
+          onChange={setScreenshot}
+          onRecognized={(readings) => {
+            loadRecognized(readings, orientation);
+          }}
+        />
+      )}
       {exploring ? (
         <>
           <Board

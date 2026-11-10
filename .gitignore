@@ -1,5 +1,7 @@
 node_modules/
 extension/dist/
+# The piece model, kept local (see docs/vision/recognition.md).
+extension/models/
 coverage/
 *.log
 .DS_Store
