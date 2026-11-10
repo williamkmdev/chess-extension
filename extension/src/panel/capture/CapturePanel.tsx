@@ -4,42 +4,73 @@ import type { Rect, Size } from './crop';
 import type { CropImage } from './cropImage';
 import { CropView } from './CropView';
 import type { FindBoard } from './findBoard';
+import type { Recognize } from './recognize';
+import type { DraftPosition } from '../../shared/position';
+import type { TileReading } from '../../vision/classify';
 import './capture.css';
 
 export interface CapturePanelProps {
   readonly screenshot: Screenshot | null;
+  /** The editor's draft. If it's edited while the pieces are read, what's read isn't loaded. */
+  readonly position: DraftPosition;
   readonly capture: CaptureVisibleTab;
   readonly cropImage: CropImage;
   readonly findBoard: FindBoard;
+  readonly recognize: Recognize;
   /** A new screenshot, a new crop of it, where the board is on it, or null when removed. */
   readonly onChange: (screenshot: Screenshot | null) => void;
+  /** The pieces read on the board found, in screen order (top left first). */
+  readonly onRecognized: (readings: readonly TileReading[]) => void;
 }
 
-/** What the board search found, for the user. */
-function boardNote(screenshot: Screenshot): string | null {
+/** What the panel is doing with what's shown. */
+type Phase = 'locating' | 'reading' | null;
+/** How reading the pieces on the board found went. */
+type Reading = 'loaded' | 'edited' | 'no-model' | 'failed' | null;
+
+/** What the board search and piece reading found, for the user. */
+function boardNote(screenshot: Screenshot, reading: Reading): string | null {
   if (screenshot.board === undefined) return null;
-  if (screenshot.board) return 'Board found.';
-  return screenshot.crop
-    ? 'Board not found. Try cropping closer around it.'
-    : 'Board not found. Try cropping around it.';
+  if (!screenshot.board) {
+    return screenshot.crop
+      ? 'Board not found. Try cropping closer around it.'
+      : 'Board not found. Try cropping around it.';
+  }
+  switch (reading) {
+    case 'loaded':
+      return 'Board found. Position loaded: set the side to move and check the pieces.';
+    case 'edited':
+      return 'Board found. The position was edited meanwhile, so it was kept.';
+    case 'no-model':
+      return 'Board found. Piece recognition isn’t installed.';
+    case 'failed':
+      return 'Board found, but the pieces couldn’t be read.';
+    case null:
+      return 'Board found.';
+  }
 }
 
 /**
  * Takes a screenshot of the tab on request and looks for the board on it. If it finds the
  * wrong board or none, the user can crop to the area to search (Crop); the
  * screenshot is then shown cropped to that area, for reference. The board found is
- * outlined on what's shown.
+ * outlined on what's shown, and the pieces on it are read (`onRecognized`).
  */
 export function CapturePanel({
   screenshot,
+  position,
   capture,
   cropImage,
   findBoard,
+  recognize,
   onChange,
+  onRecognized,
 }: CapturePanelProps) {
   const [busy, setBusy] = useState(false);
-  /** Looking for the board in what's shown (or cropping to the area to search). */
-  const [locating, setLocating] = useState(false);
+  /** Looking for the board in what's shown (or cropping to the area to search), then
+   * reading its pieces. */
+  const [phase, setPhase] = useState<Phase>(null);
+  const [reading, setReading] = useState<Reading>(null);
   const [error, setError] = useState<string | null>(null);
   /** Selecting the area to search on the screenshot. */
   const [selecting, setSelecting] = useState(false);
@@ -48,10 +79,29 @@ export function CapturePanel({
   // a result still pending is ignored.
   const request = useRef(0);
   const cropRequest = useRef(0);
+  // The latest callback, for results that arrive after a newer render (e.g. after the
+  // board was flipped while the pieces were being read).
+  const latest = useRef({ onRecognized, position });
+  latest.current = { onRecognized, position };
 
-  /** Looks for the board in `current`'s crop (or all of it) and records where it is. */
+  // Hidden (e.g. on Confirm position) while a capture, search or reading is pending:
+  // its result no longer applies.
+  useEffect(
+    () => () => {
+      request.current += 1;
+      cropRequest.current += 1;
+    },
+    [],
+  );
+
+  /**
+   * Looks for the board in `current`'s crop (or all of it), records where it is, and
+   * reads the pieces on it.
+   */
   const searchBoard = async (current: Screenshot, id: number) => {
-    setLocating(true);
+    const draft = latest.current.position;
+    setPhase('locating');
+    setReading(null);
     const region = current.crop?.rect;
     let board: Rect | null = null;
     try {
@@ -63,15 +113,40 @@ export function CapturePanel({
       console.error('Couldn’t look for the board', cause);
     }
     if (id !== cropRequest.current) return;
-    setLocating(false);
     onChange({ ...current, board });
+    if (!board) {
+      setPhase(null);
+      return;
+    }
+
+    setPhase('reading');
+    let outcome: Reading;
+    let readings: readonly TileReading[] | null = null;
+    try {
+      const result = await recognize(current.dataUrl, board);
+      if (result.ok) readings = result.readings;
+      outcome = result.ok ? 'loaded' : 'no-model';
+    } catch (cause) {
+      console.error('Couldn’t read the pieces', cause);
+      outcome = 'failed';
+    }
+    if (id !== cropRequest.current) return;
+    // Edits made meanwhile (an imported FEN, a cleared board) aren't overwritten.
+    if (readings && latest.current.position !== draft) {
+      readings = null;
+      outcome = 'edited';
+    }
+    setPhase(null);
+    setReading(outcome);
+    if (readings) latest.current.onRecognized(readings);
   };
 
   const takeScreenshot = async () => {
     const id = ++request.current;
     cropRequest.current += 1;
     setBusy(true);
-    setLocating(false);
+    setPhase(null);
+    setReading(null);
     setError(null);
     const result = await captureTab(capture);
     if (id !== request.current) return;
@@ -91,14 +166,15 @@ export function CapturePanel({
   const locateIn = async (current: Screenshot, rect: Rect) => {
     const id = ++cropRequest.current;
     setSelecting(false);
-    setLocating(true);
+    setPhase('locating');
+    setReading(null);
     setError(null);
     let dataUrl: string;
     try {
       dataUrl = await cropImage(current.dataUrl, rect);
     } catch (cause) {
       if (id !== cropRequest.current) return;
-      setLocating(false);
+      setPhase(null);
       const message = cause instanceof Error ? cause.message : String(cause);
       setError(`Couldn’t crop the screenshot: ${message}`);
       return;
@@ -116,7 +192,7 @@ export function CapturePanel({
     void searchBoard(whole, id);
   };
 
-  const note = screenshot && !locating ? boardNote(screenshot) : null;
+  const note = screenshot && !phase ? boardNote(screenshot, reading) : null;
 
   return (
     <section class="capture" aria-label="Screenshot">
@@ -157,7 +233,8 @@ export function CapturePanel({
               request.current += 1;
               cropRequest.current += 1;
               setBusy(false);
-              setLocating(false);
+              setPhase(null);
+              setReading(null);
               setError(null);
               setSelecting(false);
               onChange(null);
@@ -168,7 +245,8 @@ export function CapturePanel({
         )}
       </div>
       {busy && <p class="capture-status">Capturing…</p>}
-      {locating && <p class="capture-status">Finding the board…</p>}
+      {phase === 'locating' && <p class="capture-status">Finding the board…</p>}
+      {phase === 'reading' && <p class="capture-status">Reading the pieces…</p>}
       {note && (
         <p class="capture-note" role="status">
           {note}
@@ -196,7 +274,7 @@ export function CapturePanel({
         <Shown
           key={screenshot.crop?.dataUrl ?? screenshot.dataUrl}
           screenshot={screenshot}
-          outline={!locating}
+          outline={phase !== 'locating'}
         />
       )}
     </section>

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeTransport } from '../engine/testing';
 import { App } from './App';
 import type { FindBoard } from './capture/findBoard';
+import type { Recognize } from './capture/recognize';
+import type { TileReading } from '../vision/classify';
 
 const container = document.createElement('div');
 /** The fake engines the app created, in order (Retry creates a new one). */
@@ -1349,12 +1351,21 @@ describe('screenshot', () => {
     expect(shown()).toBeNull();
   });
 
-  it('removes the screenshot, and keeps it while confirming and exploring', async () => {
+  it('hides the screenshot while exploring, and shows it again on Edit position', async () => {
     await renderWith(() => Promise.resolve(PNG));
     await capture();
     await click(button('Confirm position'));
-    expect(shown()).not.toBeNull();
+    expect(container.querySelector('.capture')).toBeNull();
+    expect(() => button('Capture tab')).toThrow();
 
+    await click(button('Edit position'));
+    expect(shown()?.getAttribute('src')).toBe(PNG);
+    expect(button('Capture tab')).toBeTruthy();
+  });
+
+  it('removes the screenshot', async () => {
+    await renderWith(() => Promise.resolve(PNG));
+    await capture();
     await click(button('Remove screenshot'));
     expect(shown()).toBeNull();
     expect(button('Capture tab')).toBeTruthy();
@@ -1365,6 +1376,26 @@ const NOT_IN_SHOT = 'Board not found. Try cropping around it.';
 const NOT_IN_CROP = 'Board not found. Try cropping closer around it.';
 const noteText = () => container.querySelector('.capture-note')?.textContent ?? null;
 const outline = () => container.querySelector<HTMLElement>('.board-outline');
+const LOADED = 'Board found. Position loaded: set the side to move and check the pieces.';
+
+/**
+ * What the piece model would read on a board showing `placement` (FEN-like rows, as
+ * seen on screen from the top), in screen order.
+ */
+function screenReadings(placement: string): TileReading[] {
+  return placement.split('/').flatMap((row) =>
+    Array.from(row).flatMap((char): TileReading[] => {
+      if (/\d/.test(char)) {
+        return Array.from({ length: Number(char) }, () => ({ piece: null, confidence: 0.99 }));
+      }
+      const type = char.toLowerCase() as 'k' | 'q' | 'r' | 'b' | 'n' | 'p';
+      return [{ piece: { color: char === type ? 'b' : 'w', type }, confidence: 0.99 }];
+    }),
+  );
+}
+/** A board with only two kings, White's at the bottom of the screen. */
+const KINGS = '4k3/8/8/8/8/8/8/4K3';
+const readsKings: Recognize = () => Promise.resolve({ ok: true, readings: screenReadings(KINGS) });
 const hasButton = (name: string) =>
   [...container.querySelectorAll('button')].some((el) => el.textContent === name);
 
@@ -1401,6 +1432,7 @@ describe('choosing the area to search', () => {
           captureVisibleTab={() => Promise.resolve(PNG)}
           cropImage={cropImage}
           findBoard={findBoard}
+          recognize={readsKings}
         />,
         container,
       );
@@ -1482,7 +1514,7 @@ describe('choosing the area to search', () => {
     expect(cropImage).toHaveBeenCalledTimes(1);
     expect(cropImage).toHaveBeenCalledWith(PNG, { x: 250, y: 100, width: 500, height: 500 });
     expect(result()?.getAttribute('src')).toBe(CROPPED);
-    expect(noteText()).toBe('Board found.');
+    expect(noteText()).toBe(LOADED);
     // The board is at (50, 50)–(450, 450) of the 500 px crop.
     expect(outline()?.style.left).toBe('10%');
     expect(outline()?.style.top).toBe('10%');
@@ -1655,6 +1687,7 @@ describe('finding the board after a capture', () => {
           captureVisibleTab={() => Promise.resolve(PNG)}
           cropImage={cropImage}
           findBoard={findBoard}
+          recognize={readsKings}
         />,
         container,
       );
@@ -1677,7 +1710,7 @@ describe('finding the board after a capture', () => {
     await click(button('Capture tab'));
     await flush();
     await loadImage();
-    expect(noteText()).toBe('Board found.');
+    expect(noteText()).toBe(LOADED);
     expect(cropImage).not.toHaveBeenCalled();
     expect(container.querySelector('.screenshot img')?.getAttribute('src')).toBe(PNG);
     expect(container.querySelector('.crop-area')).toBeNull();
@@ -1755,5 +1788,213 @@ describe('finding the board after a capture', () => {
       for (let i = 0; i < 10; i += 1) await Promise.resolve();
     });
     expect(noteText()).toBe(NOT_IN_SHOT);
+  });
+});
+
+describe('reading the pieces', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+  const BOARD = { x: 100, y: 50, width: 400, height: 400 };
+  const status = () => container.querySelector('.capture-status')?.textContent ?? null;
+  const findsBoard: FindBoard = () => Promise.resolve(found(BOARD));
+
+  async function renderWith(recognize: Recognize, findBoard = findsBoard) {
+    await act(() => {
+      render(null, container);
+    });
+    await act(() => {
+      render(
+        <App
+          createTransport={() => new FakeTransport()}
+          captureVisibleTab={() => Promise.resolve(PNG)}
+          cropImage={() => Promise.resolve('data:image/png;base64,cropped')}
+          findBoard={findBoard}
+          recognize={recognize}
+        />,
+        container,
+      );
+    });
+  }
+
+  async function capture() {
+    await click(button('Capture tab'));
+    await flush();
+  }
+
+  it('loads the position read into the editor, leaving the side to move to choose', async () => {
+    const recognize = vi.fn(readsKings);
+    await renderWith(recognize);
+    await capture();
+    expect(recognize).toHaveBeenCalledWith(PNG, BOARD);
+    expect(noteText()).toBe(LOADED);
+    expect(pieceCount()).toBe(2);
+    expect(label('e1')).toBe('e1, white king');
+    expect(label('e8')).toBe('e8, black king');
+    await click(button('Confirm position'));
+    expect(errorTexts('.confirm')).toEqual(['Choose whose turn it is (White or Black).']);
+  });
+
+  it('shows that it is reading the pieces meanwhile, with the board outlined', async () => {
+    await renderWith(() => new Promise(() => undefined));
+    await capture();
+    expect(status()).toBe('Reading the pieces…');
+    expect(noteText()).toBeNull();
+    expect(pieceCount()).toBe(32);
+  });
+
+  it('says so when piece recognition isn’t installed, leaving the board alone', async () => {
+    await renderWith(() => Promise.resolve({ ok: false, reason: 'no-model' }));
+    await capture();
+    expect(noteText()).toBe('Board found. Piece recognition isn’t installed.');
+    expect(pieceCount()).toBe(32);
+  });
+
+  it('says so when the pieces couldn’t be read', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await renderWith(() => Promise.reject(new Error('session failed')));
+    await capture();
+    expect(noteText()).toBe('Board found, but the pieces couldn’t be read.');
+    expect(error).toHaveBeenCalled();
+    expect(pieceCount()).toBe(32);
+  });
+
+  it('reads it again from the other side on Flip board, until it is edited', async () => {
+    // Black's pieces at the bottom of the screen; the editor has White at the bottom.
+    await renderWith(() =>
+      Promise.resolve({ ok: true, readings: screenReadings('3K4/8/8/8/8/8/8/3k4') }),
+    );
+    await capture();
+    expect(label('d8')).toBe('d8, white king');
+
+    await click(button('Flip board'));
+    expect(firstSquare()).toBe('h1');
+    expect(label('e1')).toBe('e1, white king');
+    expect(label('e8')).toBe('e8, black king');
+    expect(pieceCount()).toBe(2);
+
+    await click(button('Flip board'));
+    expect(label('d8')).toBe('d8, white king');
+
+    // After an edit, Flip board only turns the view.
+    await click(button('Clear board'));
+    await click(button('Flip board'));
+    expect(pieceCount()).toBe(0);
+  });
+
+  it('reads with the orientation at the time the pieces are read', async () => {
+    let finish: (result: Awaited<ReturnType<Recognize>>) => void = () => undefined;
+    await renderWith(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await capture();
+    await click(button('Flip board'));
+    await act(async () => {
+      finish({ ok: true, readings: screenReadings('3K4/8/8/8/8/8/8/3k4') });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(label('e1')).toBe('e1, white king');
+    expect(label('e8')).toBe('e8, black king');
+  });
+
+  it('ignores pieces read after the position was confirmed', async () => {
+    let finish: (result: Awaited<ReturnType<Recognize>>) => void = () => undefined;
+    await renderWith(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await capture();
+    const before = pieceCount();
+    await click(button('Confirm position'));
+    await act(async () => {
+      finish({ ok: true, readings: screenReadings(KINGS) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(container.querySelector('.palette')).toBeNull();
+
+    await click(button('Edit position'));
+    expect(pieceCount()).toBe(before);
+    expect(noteText()).toBe('Board found.');
+  });
+
+  it('ignores pieces read after the screenshot was removed', async () => {
+    let finish: (result: Awaited<ReturnType<Recognize>>) => void = () => undefined;
+    await renderWith(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await capture();
+    await click(button('Remove screenshot'));
+    await act(async () => {
+      finish({ ok: true, readings: screenReadings(KINGS) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(pieceCount()).toBe(32);
+    expect(status()).toBeNull();
+    expect(noteText()).toBeNull();
+  });
+
+  it('keeps edits made while the pieces were being read', async () => {
+    let finish: (result: Awaited<ReturnType<Recognize>>) => void = () => undefined;
+    await renderWith(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await capture();
+    await click(button('Clear board'));
+    await act(async () => {
+      finish({ ok: true, readings: screenReadings(KINGS) });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(pieceCount()).toBe(0);
+    expect(noteText()).toBe('Board found. The position was edited meanwhile, so it was kept.');
+  });
+
+  it('keeps edits made while the board was being found', async () => {
+    let locate: () => void = () => undefined;
+    await renderWith(
+      readsKings,
+      () =>
+        new Promise((resolve) => {
+          locate = () => {
+            resolve(found(BOARD));
+          };
+        }),
+    );
+    await capture();
+    await click(button('Clear board'));
+    await act(async () => {
+      locate();
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(pieceCount()).toBe(0);
+    expect(noteText()).toBe('Board found. The position was edited meanwhile, so it was kept.');
+  });
+
+  it('does not read the pieces when no board is found', async () => {
+    const recognize = vi.fn(readsKings);
+    await act(() => {
+      render(null, container);
+    });
+    await act(() => {
+      render(
+        <App
+          captureVisibleTab={() => Promise.resolve(PNG)}
+          findBoard={notFound}
+          recognize={recognize}
+        />,
+        container,
+      );
+    });
+    await capture();
+    expect(recognize).not.toHaveBeenCalled();
+    expect(pieceCount()).toBe(32);
   });
 });
