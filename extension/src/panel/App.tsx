@@ -29,7 +29,7 @@ import { useDragPiece } from './board/useDragPiece';
 import { ConfirmedFen, ConfirmPanel } from './editor/ConfirmPanel';
 import { FenImport } from './editor/FenImport';
 import { Palette, type Tool } from './editor/Palette';
-import { PositionDetails } from './editor/PositionDetails';
+import { PositionDetails, SideToMove } from './editor/PositionDetails';
 import { positionFromReadings, type TileReading } from '../vision/classify';
 
 interface FailedConfirmation {
@@ -213,7 +213,7 @@ export function App({
     <>
       <h1>Chess Position Explorer</h1>
       {/* The screenshot is for setting up the position, so it's hidden while exploring the
-          confirmed one; Edit position brings it back as it was. */}
+          confirmed one; New position brings it back as it was. */}
       {!exploring && (
         <CapturePanel
           screenshot={screenshot}
@@ -287,9 +287,6 @@ export function App({
                 Stop playing
               </button>
             )}
-            <button type="button" onClick={explorer.exit}>
-              Edit position
-            </button>
           </div>
           {explorer.tree && explorer.current !== null && (
             <MoveList tree={explorer.tree} current={explorer.current} onSelect={explorer.goToNode}>
@@ -311,9 +308,6 @@ export function App({
               </div>
             </MoveList>
           )}
-          <section class="confirm" aria-label="Current position">
-            <ConfirmedFen key={toFen(exploring)} position={exploring} />
-          </section>
           {explorer.move && explorer.previous && (
             <MoveComparison
               move={explorer.move}
@@ -330,6 +324,12 @@ export function App({
             onRetry={analysis.retry}
             onPlayLine={explorer.playLine}
           />
+          <section class="confirm" aria-label="Current position">
+            <button type="button" onClick={explorer.exit}>
+              New position
+            </button>
+            <ConfirmedFen key={toFen(exploring)} position={exploring} />
+          </section>
         </>
       ) : (
         <>
@@ -371,7 +371,7 @@ export function App({
               Starting position
             </button>
           </div>
-          <PositionDetails position={position} onChange={replacePosition} />
+          <SideToMove position={position} onChange={replacePosition} />
           <ConfirmPanel
             errors={errors}
             onConfirm={() => {
@@ -384,7 +384,11 @@ export function App({
               }
             }}
           />
-          <FenImport onLoad={replacePosition} />
+          <section class="extra" aria-labelledby="extra-heading">
+            <h2 id="extra-heading">Additional settings</h2>
+            <PositionDetails position={position} onChange={replacePosition} />
+            <FenImport onLoad={replacePosition} />
+          </section>
         </>
       )}
 

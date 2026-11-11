@@ -47,6 +47,16 @@
   margin-top: 12px;
 }
 
+.extra {
+  max-width: 480px;
+  margin-top: 16px;
+}
+
+.extra h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
 .details fieldset {
   display: flex;
   flex-wrap: wrap;
@@ -73,6 +83,10 @@
 
 .required {
   background: color-mix(in srgb, #dc2626 25%, transparent);
+}
+
+.confirm > button + .confirmed {
+  margin-top: 8px;
 }
 
 .fen-import input[type='text'],

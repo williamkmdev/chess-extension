@@ -135,7 +135,7 @@ export function useExplorer() {
     },
     /**
      * Plays Stockfish's move found for move `at`. Checked against the live state, not
-     * this render's: a click that happened since (Back, Stop playing, Edit position)
+     * this render's: a click that happened since (Back, Stop playing, New position)
      * wins, and nothing is played unless it's still Stockfish's turn at the end of that
      * line in a game that's still on.
      */

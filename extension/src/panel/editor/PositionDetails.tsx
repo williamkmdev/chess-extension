@@ -36,9 +36,10 @@ export interface PositionDetailsProps {
   readonly onChange: (next: DraftPosition) => void;
 }
 
-export function PositionDetails({ position, onChange }: PositionDetailsProps) {
+/** Whose turn it is: required before the position can be confirmed. */
+export function SideToMove({ position, onChange }: PositionDetailsProps) {
   return (
-    <section class="details" aria-label="Position details">
+    <section class="details" aria-label="Side to move">
       <fieldset>
         <legend>
           Side to move {position.sideToMove === 'unknown' && <span class="required">required</span>}
@@ -57,7 +58,14 @@ export function PositionDetails({ position, onChange }: PositionDetailsProps) {
           </label>
         ))}
       </fieldset>
+    </section>
+  );
+}
 
+/** Castling rights, en passant and the move counters, which default when not stated. */
+export function PositionDetails({ position, onChange }: PositionDetailsProps) {
+  return (
+    <section class="details" aria-label="Position details">
       <fieldset>
         <legend>Castling</legend>
         {CASTLING_RIGHTS.map((right) => (

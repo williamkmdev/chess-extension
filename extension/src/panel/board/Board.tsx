@@ -49,7 +49,7 @@ export function Board({
               highlightedSquares.includes(square) && 'highlighted',
               (square === lastMove?.from || square === lastMove?.to) && 'last-move',
               square === selectedSquare && 'selected',
-              targetSquares.includes(square) && (piece ? 'target capture' : 'target'),
+              targetSquares.includes(square) && (piece ? 'target take' : 'target'),
             ];
             return (
               <div

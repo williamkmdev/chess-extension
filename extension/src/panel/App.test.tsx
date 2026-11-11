@@ -330,6 +330,20 @@ const highlighted = () =>
   );
 
 describe('confirm and copy', () => {
+  it('puts Confirm position right after the side to move, and the rest under Additional settings', () => {
+    const sections = [...container.querySelectorAll('section')].map((s) =>
+      s.getAttribute('aria-label'),
+    );
+    const side = sections.indexOf('Side to move');
+    expect(sections[side + 1]).toBe('Confirm position');
+
+    const extra = container.querySelector('.extra');
+    expect(extra?.querySelector('h2')?.textContent).toBe('Additional settings');
+    const legends = [...(extra?.querySelectorAll('legend') ?? [])].map((l) => l.textContent);
+    expect(legends).toEqual(['Castling', 'Other']);
+    expect(extra?.querySelector('.fen-import')).not.toBeNull();
+  });
+
   it('requires the side to move, then confirms and shows the FEN', async () => {
     await loadFen('4k3/8/8/8/8/8/8/4K3');
     await click(button('Confirm position'));
@@ -352,10 +366,10 @@ describe('confirm and copy', () => {
     expect(confirmedFen()).toBeNull();
   });
 
-  it('returns to editing the confirmed draft with Edit position', async () => {
+  it('returns to editing the confirmed draft with New position', async () => {
     await click(button('Confirm position'));
     expect(confirmedFen()).toBe('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
-    await click(button('Edit position'));
+    await click(button('New position'));
     expect(confirmedFen()).toBeNull();
     expect(container.querySelector('.palette')).not.toBeNull();
     await dragTo(square('e2'), 'e4');
@@ -447,6 +461,16 @@ describe('exploring moves', () => {
     await click(button('Confirm position'));
   }
 
+  it('shows the engine analysis above New position and the FEN', async () => {
+    await explore();
+    const sections = [...container.querySelectorAll('section')].map((s) =>
+      s.getAttribute('aria-label'),
+    );
+    expect(sections.slice(-2)).toEqual(['Engine analysis', 'Current position']);
+    const current = container.querySelector('section[aria-label="Current position"]');
+    expect(current?.contains(button('New position'))).toBe(true);
+  });
+
   it('enters Explore on Confirm, hiding the editor', async () => {
     await explore();
     expect(container.querySelector('.palette')).toBeNull();
@@ -537,7 +561,9 @@ describe('exploring moves', () => {
     await explore('4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1');
     await tap('e4');
     expect(squaresWith('target')).toEqual(['d5', 'e5']);
-    expect(squaresWith('capture')).toEqual(['d5']);
+    expect(squaresWith('take')).toEqual(['d5']);
+    // Not `.capture`: that's the screenshot panel's class, and its margin would apply.
+    expect(container.querySelectorAll('.square.capture')).toHaveLength(0);
   });
 
   it('asks for the promotion piece before playing the move', async () => {
@@ -637,7 +663,7 @@ describe('exploring moves', () => {
     await press('ArrowLeft', window, { shiftKey: true });
     expect(confirmedFen()).toBe(AFTER_E4);
 
-    await click(button('Edit position'));
+    await click(button('New position'));
     await explore('4k3/P7/8/8/8/8/8/4K3 w - - 0 1');
     await dragTo(square('e1'), 'd1');
     await dragTo(square('e8'), 'd8');
@@ -799,7 +825,7 @@ describe('engine analysis', () => {
     await click(button('Confirm position'));
     await settle();
     await emit('info depth 5 score cp 20 pv e2e4');
-    await click(button('Edit position'));
+    await click(button('New position'));
     expect(analysisText()).toBeNull();
     expect(engine().searchCommands.at(-1)).toBe('stop');
 
@@ -1127,7 +1153,7 @@ describe('engine analysis', () => {
 
     it('stops playing when going back to edit the position', async () => {
       await startPlaying();
-      await click(button('Edit position'));
+      await click(button('New position'));
       await click(button('Confirm position'));
       expect(turn()).toBe('White to move');
       expect(button('Play vs Stockfish')).toBeTruthy();
@@ -1148,7 +1174,7 @@ describe('engine analysis', () => {
     await click(button('Confirm position'));
     await settle();
     await emit('bestmove e2e4');
-    await click(button('Edit position'));
+    await click(button('New position'));
     await dragTo(square('e2'), 'e4');
     await click(labeledInput('Black'));
     await click(button('Confirm position'));
@@ -1162,7 +1188,7 @@ describe('engine analysis', () => {
     await click(button('Confirm position'));
     await settle();
     expect(analysisText()).toContain('Checkmate: White wins');
-    await click(button('Edit position'));
+    await click(button('New position'));
     await loadFen('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1');
     await click(button('Confirm position'));
     await settle();
@@ -1351,14 +1377,14 @@ describe('screenshot', () => {
     expect(shown()).toBeNull();
   });
 
-  it('hides the screenshot while exploring, and shows it again on Edit position', async () => {
+  it('hides the screenshot while exploring, and shows it again on New position', async () => {
     await renderWith(() => Promise.resolve(PNG));
     await capture();
     await click(button('Confirm position'));
     expect(container.querySelector('.capture')).toBeNull();
     expect(() => button('Capture tab')).toThrow();
 
-    await click(button('Edit position'));
+    await click(button('New position'));
     expect(shown()?.getAttribute('src')).toBe(PNG);
     expect(button('Capture tab')).toBeTruthy();
   });
@@ -1915,7 +1941,7 @@ describe('reading the pieces', () => {
     });
     expect(container.querySelector('.palette')).toBeNull();
 
-    await click(button('Edit position'));
+    await click(button('New position'));
     expect(pieceCount()).toBe(before);
     expect(noteText()).toBe('Board found.');
   });

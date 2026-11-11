@@ -4,7 +4,7 @@ import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setHalfmoveClock } from '../../shared/editing';
 import { emptyDraft, startingPosition, type DraftPosition } from '../../shared/position';
-import { PositionDetails } from './PositionDetails';
+import { PositionDetails, SideToMove } from './PositionDetails';
 
 const container = document.createElement('div');
 
@@ -17,7 +17,13 @@ async function renderDetails(position: DraftPosition) {
   const onChange = vi.fn<(next: DraftPosition) => void>();
   document.body.append(container);
   await act(() => {
-    render(<PositionDetails position={position} onChange={onChange} />, container);
+    render(
+      <>
+        <SideToMove position={position} onChange={onChange} />
+        <PositionDetails position={position} onChange={onChange} />
+      </>,
+      container,
+    );
   });
   return onChange;
 }
@@ -49,7 +55,7 @@ const lastChange = (onChange: ReturnType<typeof vi.fn>) => {
   return call[0];
 };
 
-describe('PositionDetails', () => {
+describe('SideToMove and PositionDetails', () => {
   it('requires a side to move and tags defaulted fields as assumed', async () => {
     await renderDetails(emptyDraft());
     expect(container.querySelector('.required')?.textContent).toBe('required');

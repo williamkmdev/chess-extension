@@ -57,7 +57,7 @@
   pointer-events: none;
 }
 
-.square.target.capture::after {
+.square.target.take::after {
   inset: 0;
   background: radial-gradient(transparent 0 79%, rgb(20 85 30 / 50%) 80%);
 }
