@@ -1,0 +1,32 @@
+{
+  "screenshot": {
+    "width": 1280,
+    "height": 720
+  },
+  "board": {
+    "x": 194,
+    "y": 84,
+    "width": 512,
+    "height": 512
+  },
+  "expectedBoard": {
+    "x": 194,
+    "y": 84,
+    "width": 512,
+    "height": 512
+  },
+  "coverage": 0.9926060267857143,
+  "peaks": {
+    "x": 65,
+    "y": 51
+  },
+  "fits": {
+    "x": 12,
+    "y": 22
+  },
+  "locateMs": 147,
+  "recognition": {
+    "correct": 64,
+    "lowestConfidence": 0.6848114132881165
+  }
+}

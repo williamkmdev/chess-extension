@@ -15,8 +15,9 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },
-  "include": ["src", "test", "vite.config.ts", "eslint.config.js"]
+  "include": ["src", "test", "scripts", "vite.config.ts", "eslint.config.js"]
 }

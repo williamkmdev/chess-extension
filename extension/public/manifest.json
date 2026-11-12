@@ -2,10 +2,20 @@
   "manifest_version": 3,
   "name": "Chess Video Position Explorer",
   "version": "0.0.0",
-  "description": "Capture a chess position from a video, try a candidate move, and see the engine's reply. Runs locally.",
+  "description": "Screenshot any chess board, then explore it: try your own moves, branch into variations, and play against Stockfish. All local.",
   "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
-    "default_title": "Open Chess Position Explorer"
+    "default_title": "Open Chess Position Explorer",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
   },
   "side_panel": {
     "default_path": "src/panel/sidepanel.html"

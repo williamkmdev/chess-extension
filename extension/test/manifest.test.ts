@@ -27,6 +27,12 @@ describe('manifest', () => {
     });
   });
 
+  it('points at icons that exist, in the sizes Chrome and the Web Store use', () => {
+    const icons = { ...manifest.icons, ...manifest.action.default_icon };
+    expect(Object.keys(manifest.icons)).toEqual(['16', '32', '48', '128']);
+    for (const path of Object.values(icons)) expect(exists(`public/${path}`)).toBe(true);
+  });
+
   it('points the side panel at a source page that exists', () => {
     // The built page keeps its source-relative path, so this also keeps dist/ consistent.
     expect(exists(manifest.side_panel.default_path)).toBe(true);

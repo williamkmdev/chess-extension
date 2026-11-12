@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560">
+<style>
+  text { font-family: system-ui, sans-serif; }
+  .w { font-size: 26px; font-weight: 700; fill: #ffffff; stroke: #1f2937; stroke-width: 1.2px; paint-order: stroke; }
+  .b { font-size: 26px; font-weight: 700; fill: #111827; }
+  .c { font-size: 11px; fill: #1f2937; fill-opacity: 0.75; }
+</style>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<rect x="24" y="24" width="64" height="64" fill="#f0d9b5"/><text x="56" y="60" text-anchor="middle" class="b">r</text><text x="56" y="80" text-anchor="middle" class="c">96%</text>
+<rect x="88" y="24" width="64" height="64" fill="#b58863"/><text x="120" y="60" text-anchor="middle" class="b">·</text><text x="120" y="80" text-anchor="middle" class="c">71%</text>
+<rect x="152" y="24" width="64" height="64" fill="#f0d9b5"/><text x="184" y="60" text-anchor="middle" class="b">b</text><text x="184" y="80" text-anchor="middle" class="c">97%</text>
+<rect x="216" y="24" width="64" height="64" fill="#b58863"/><text x="248" y="60" text-anchor="middle" class="b">q</text><text x="248" y="80" text-anchor="middle" class="c">99%</text>
+<rect x="280" y="24" width="64" height="64" fill="#f0d9b5"/><text x="312" y="60" text-anchor="middle" class="b">·</text><text x="312" y="80" text-anchor="middle" class="c">84%</text>
+<rect x="344" y="24" width="64" height="64" fill="#b58863"/><text x="376" y="60" text-anchor="middle" class="b">r</text><text x="376" y="80" text-anchor="middle" class="c">95%</text>
+<rect x="408" y="24" width="64" height="64" fill="#f0d9b5"/><text x="440" y="60" text-anchor="middle" class="b">k</text><text x="440" y="80" text-anchor="middle" class="c">98%</text>
+<rect x="472" y="24" width="64" height="64" fill="#b58863"/><text x="504" y="60" text-anchor="middle" class="b">·</text><text x="504" y="80" text-anchor="middle" class="c">68%</text>
+<rect x="24" y="88" width="64" height="64" fill="#b58863"/><text x="56" y="124" text-anchor="middle" class="b">·</text><text x="56" y="144" text-anchor="middle" class="c">73%</text>
+<rect x="88" y="88" width="64" height="64" fill="#f0d9b5"/><text x="120" y="124" text-anchor="middle" class="b">·</text><text x="120" y="144" text-anchor="middle" class="c">84%</text>
+<rect x="152" y="88" width="64" height="64" fill="#b58863"/><text x="184" y="124" text-anchor="middle" class="b">p</text><text x="184" y="144" text-anchor="middle" class="c">93%</text>
+<rect x="216" y="88" width="64" height="64" fill="#f0d9b5"/><text x="248" y="124" text-anchor="middle" class="b">n</text><text x="248" y="144" text-anchor="middle" class="c">97%</text>
+<rect x="280" y="88" width="64" height="64" fill="#b58863"/><text x="312" y="124" text-anchor="middle" class="b">b</text><text x="312" y="144" text-anchor="middle" class="c">95%</text>
+<rect x="344" y="88" width="64" height="64" fill="#f0d9b5"/><text x="376" y="124" text-anchor="middle" class="b">p</text><text x="376" y="144" text-anchor="middle" class="c">95%</text>
+<rect x="408" y="88" width="64" height="64" fill="#b58863"/><text x="440" y="124" text-anchor="middle" class="b">p</text><text x="440" y="144" text-anchor="middle" class="c">93%</text>
+<rect x="472" y="88" width="64" height="64" fill="#f0d9b5"/><text x="504" y="124" text-anchor="middle" class="b">p</text><text x="504" y="144" text-anchor="middle" class="c">95%</text>
+<rect x="24" y="152" width="64" height="64" fill="#f0d9b5"/><text x="56" y="188" text-anchor="middle" class="b">p</text><text x="56" y="208" text-anchor="middle" class="c">96%</text>
+<rect x="88" y="152" width="64" height="64" fill="#b58863"/><text x="120" y="188" text-anchor="middle" class="b">·</text><text x="120" y="208" text-anchor="middle" class="c">68%</text>
+<rect x="152" y="152" width="64" height="64" fill="#f0d9b5"/><text x="184" y="188" text-anchor="middle" class="b">·</text><text x="184" y="208" text-anchor="middle" class="c">84%</text>
+<rect x="216" y="152" width="64" height="64" fill="#b58863"/><text x="248" y="188" text-anchor="middle" class="b">p</text><text x="248" y="208" text-anchor="middle" class="c">93%</text>
+<rect x="280" y="152" width="64" height="64" fill="#f0d9b5"/><text x="312" y="188" text-anchor="middle" class="b">·</text><text x="312" y="208" text-anchor="middle" class="c">84%</text>
+<rect x="344" y="152" width="64" height="64" fill="#b58863"/><text x="376" y="188" text-anchor="middle" class="b">n</text><text x="376" y="208" text-anchor="middle" class="c">95%</text>
+<rect x="408" y="152" width="64" height="64" fill="#f0d9b5"/><text x="440" y="188" text-anchor="middle" class="b">·</text><text x="440" y="208" text-anchor="middle" class="c">84%</text>
+<rect x="472" y="152" width="64" height="64" fill="#b58863"/><text x="504" y="188" text-anchor="middle" class="b">·</text><text x="504" y="208" text-anchor="middle" class="c">68%</text>
+<rect x="24" y="216" width="64" height="64" fill="#b58863"/><text x="56" y="252" text-anchor="middle" class="b">·</text><text x="56" y="272" text-anchor="middle" class="c">74%</text>
+<rect x="88" y="216" width="64" height="64" fill="#f0d9b5"/><text x="120" y="252" text-anchor="middle" class="b">p</text><text x="120" y="272" text-anchor="middle" class="c">95%</text>
+<rect x="152" y="216" width="64" height="64" fill="#b58863"/><text x="184" y="252" text-anchor="middle" class="b">·</text><text x="184" y="272" text-anchor="middle" class="c">68%</text>
+<rect x="216" y="216" width="64" height="64" fill="#f0d9b5"/><text x="248" y="252" text-anchor="middle" class="b">·</text><text x="248" y="272" text-anchor="middle" class="c">84%</text>
+<rect x="280" y="216" width="64" height="64" fill="#b58863"/><text x="312" y="252" text-anchor="middle" class="b">p</text><text x="312" y="272" text-anchor="middle" class="c">93%</text>
+<rect x="344" y="216" width="64" height="64" fill="#f0d9b5"/><text x="376" y="252" text-anchor="middle" class="b">·</text><text x="376" y="272" text-anchor="middle" class="c">84%</text>
+<rect x="408" y="216" width="64" height="64" fill="#b58863"/><text x="440" y="252" text-anchor="middle" class="b">·</text><text x="440" y="272" text-anchor="middle" class="c">68%</text>
+<rect x="472" y="216" width="64" height="64" fill="#f0d9b5"/><text x="504" y="252" text-anchor="middle" class="b">·</text><text x="504" y="272" text-anchor="middle" class="c">84%</text>
+<rect x="24" y="280" width="64" height="64" fill="#f0d9b5"/><text x="56" y="316" text-anchor="middle" class="b">·</text><text x="56" y="336" text-anchor="middle" class="c">84%</text>
+<rect x="88" y="280" width="64" height="64" fill="#b58863"/><text x="120" y="316" text-anchor="middle" class="b">·</text><text x="120" y="336" text-anchor="middle" class="c">68%</text>
+<rect x="152" y="280" width="64" height="64" fill="#f0d9b5"/><text x="184" y="316" text-anchor="middle" class="b">·</text><text x="184" y="336" text-anchor="middle" class="c">84%</text>
+<rect x="216" y="280" width="64" height="64" fill="#b58863"/><text x="248" y="316" text-anchor="middle" class="w">P</text><text x="248" y="336" text-anchor="middle" class="c">97%</text>
+<rect x="280" y="280" width="64" height="64" fill="#f0d9b5"/><text x="312" y="316" text-anchor="middle" class="w">P</text><text x="312" y="336" text-anchor="middle" class="c">95%</text>
+<rect x="344" y="280" width="64" height="64" fill="#b58863"/><text x="376" y="316" text-anchor="middle" class="b">·</text><text x="376" y="336" text-anchor="middle" class="c">68%</text>
+<rect x="408" y="280" width="64" height="64" fill="#f0d9b5"/><text x="440" y="316" text-anchor="middle" class="b">·</text><text x="440" y="336" text-anchor="middle" class="c">84%</text>
+<rect x="472" y="280" width="64" height="64" fill="#b58863"/><text x="504" y="316" text-anchor="middle" class="b">·</text><text x="504" y="336" text-anchor="middle" class="c">68%</text>
+<rect x="24" y="344" width="64" height="64" fill="#b58863"/><text x="56" y="380" text-anchor="middle" class="b">·</text><text x="56" y="400" text-anchor="middle" class="c">74%</text>
+<rect x="88" y="344" width="64" height="64" fill="#f0d9b5"/><text x="120" y="380" text-anchor="middle" class="w">B</text><text x="120" y="400" text-anchor="middle" class="c">98%</text>
+<rect x="152" y="344" width="64" height="64" fill="#b58863"/><text x="184" y="380" text-anchor="middle" class="w">P</text><text x="184" y="400" text-anchor="middle" class="c">97%</text>
+<rect x="216" y="344" width="64" height="64" fill="#f0d9b5"/><text x="248" y="380" text-anchor="middle" class="b">·</text><text x="248" y="400" text-anchor="middle" class="c">84%</text>
+<rect x="280" y="344" width="64" height="64" fill="#b58863"/><text x="312" y="380" text-anchor="middle" class="b">·</text><text x="312" y="400" text-anchor="middle" class="c">68%</text>
+<rect x="344" y="344" width="64" height="64" fill="#f0d9b5"/><text x="376" y="380" text-anchor="middle" class="w">N</text><text x="376" y="400" text-anchor="middle" class="c">97%</text>
+<rect x="408" y="344" width="64" height="64" fill="#b58863"/><text x="440" y="380" text-anchor="middle" class="b">·</text><text x="440" y="400" text-anchor="middle" class="c">68%</text>
+<rect x="472" y="344" width="64" height="64" fill="#f0d9b5"/><text x="504" y="380" text-anchor="middle" class="w">P</text><text x="504" y="400" text-anchor="middle" class="c">95%</text>
+<rect x="24" y="408" width="64" height="64" fill="#f0d9b5"/><text x="56" y="444" text-anchor="middle" class="w">P</text><text x="56" y="464" text-anchor="middle" class="c">96%</text>
+<rect x="88" y="408" width="64" height="64" fill="#b58863"/><text x="120" y="444" text-anchor="middle" class="w">P</text><text x="120" y="464" text-anchor="middle" class="c">97%</text>
+<rect x="152" y="408" width="64" height="64" fill="#f0d9b5"/><text x="184" y="444" text-anchor="middle" class="b">·</text><text x="184" y="464" text-anchor="middle" class="c">84%</text>
+<rect x="216" y="408" width="64" height="64" fill="#b58863"/><text x="248" y="444" text-anchor="middle" class="b">·</text><text x="248" y="464" text-anchor="middle" class="c">68%</text>
+<rect x="280" y="408" width="64" height="64" fill="#f0d9b5"/><text x="312" y="444" text-anchor="middle" class="b">·</text><text x="312" y="464" text-anchor="middle" class="c">84%</text>
+<rect x="344" y="408" width="64" height="64" fill="#b58863"/><text x="376" y="444" text-anchor="middle" class="w">P</text><text x="376" y="464" text-anchor="middle" class="c">97%</text>
+<rect x="408" y="408" width="64" height="64" fill="#f0d9b5"/><text x="440" y="444" text-anchor="middle" class="w">P</text><text x="440" y="464" text-anchor="middle" class="c">95%</text>
+<rect x="472" y="408" width="64" height="64" fill="#b58863"/><text x="504" y="444" text-anchor="middle" class="b">·</text><text x="504" y="464" text-anchor="middle" class="c">68%</text>
+<rect x="24" y="472" width="64" height="64" fill="#b58863"/><text x="56" y="508" text-anchor="middle" class="w">R</text><text x="56" y="528" text-anchor="middle" class="c">99%</text>
+<rect x="88" y="472" width="64" height="64" fill="#f0d9b5"/><text x="120" y="508" text-anchor="middle" class="w">N</text><text x="120" y="528" text-anchor="middle" class="c">97%</text>
+<rect x="152" y="472" width="64" height="64" fill="#b58863"/><text x="184" y="508" text-anchor="middle" class="w">B</text><text x="184" y="528" text-anchor="middle" class="c">96%</text>
+<rect x="216" y="472" width="64" height="64" fill="#f0d9b5"/><text x="248" y="508" text-anchor="middle" class="w">Q</text><text x="248" y="528" text-anchor="middle" class="c">98%</text>
+<rect x="280" y="472" width="64" height="64" fill="#b58863"/><text x="312" y="508" text-anchor="middle" class="w">R</text><text x="312" y="528" text-anchor="middle" class="c">98%</text>
+<rect x="344" y="472" width="64" height="64" fill="#f0d9b5"/><text x="376" y="508" text-anchor="middle" class="b">·</text><text x="376" y="528" text-anchor="middle" class="c">84%</text>
+<rect x="408" y="472" width="64" height="64" fill="#b58863"/><text x="440" y="508" text-anchor="middle" class="w">K</text><text x="440" y="528" text-anchor="middle" class="c">98%</text>
+<rect x="472" y="472" width="64" height="64" fill="#f0d9b5"/><text x="504" y="508" text-anchor="middle" class="b">·</text><text x="504" y="528" text-anchor="middle" class="c">84%</text>
+</svg>

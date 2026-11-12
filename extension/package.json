@@ -13,7 +13,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run --configLoader runner",
-    "test:watch": "vitest --configLoader runner"
+    "test:watch": "vitest --configLoader runner",
+    "icons": "node scripts/icons.ts",
+    "figures": "node scripts/figures.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
