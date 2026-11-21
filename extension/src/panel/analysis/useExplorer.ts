@@ -28,6 +28,13 @@ interface ExplorerState {
   readonly selected: Square | null;
   /** A pawn move to the last rank, waiting for the player to choose a piece. */
   readonly promotion: { readonly from: Square; readonly to: Square } | null;
+  /**
+   * While playing against Stockfish: the move it owes a reply to, because you just made
+   * it or asked Stockfish to move first there. It replies there even inside an existing
+   * line (following that line, or branching from it). Moves you only navigate to aren't
+   * owed a reply, so stepping back through a game never makes Stockfish move.
+   */
+  readonly replyDue: NodeId | null;
 }
 
 const NO_MOVES: LegalMoves = new Map();
@@ -50,14 +57,27 @@ export function useExplorer() {
 
   const goTo = (current: ExplorerState, id: NodeId | null) => {
     if (id === null) return;
-    setState({ ...current, current: id, selected: null, promotion: null });
+    setState({
+      ...current,
+      current: id,
+      selected: null,
+      promotion: null,
+      // Leaving a move cancels any reply owed to it: coming back is only navigating.
+      replyDue: id === current.current ? current.replyDue : null,
+    });
   };
 
   const play = (current: ExplorerState, uci: string) => {
     const result = playMove(current.tree, current.current, uci);
     // Moves come from `moves`, so this only fails if the two ever disagree.
     if (!result) return;
-    setState({ tree: result.tree, current: result.id, selected: null, promotion: null });
+    setState({
+      tree: result.tree,
+      current: result.id,
+      selected: null,
+      promotion: null,
+      replyDue: livePlaying.current === null ? null : result.id,
+    });
   };
 
   /** Plays from→to if legal (asking for a piece first on a promotion); else drops it. */
@@ -103,6 +123,8 @@ export function useExplorer() {
     canGoForward: (node?.children.length ?? 0) > 0,
     /** The current move has no continuation yet. */
     atLineEnd: node !== null && node.children.length === 0,
+    /** While playing: Stockfish owes the current move a reply (see `replyDue`). */
+    replyDue: state !== null && state.replyDue === state.current,
     /** The side to move has no legal move (checkmate or stalemate). */
     gameOver: position !== null && legal.size === 0,
     /** While playing against Stockfish: the side you play; otherwise null. */
@@ -112,7 +134,13 @@ export function useExplorer() {
 
     /** Starts exploring a newly confirmed position. */
     start: (root: ConfirmedPosition) => {
-      setState({ tree: createTree(root), current: 0, selected: null, promotion: null });
+      setState({
+        tree: createTree(root),
+        current: 0,
+        selected: null,
+        promotion: null,
+        replyDue: null,
+      });
     },
     /** Stops exploring (back to setting up the position). */
     exit: () => {
@@ -128,26 +156,43 @@ export function useExplorer() {
       if (!position) return;
       const toMove = position.sideToMove;
       setPlaying(stockfishFirst ? (toMove === 'w' ? 'b' : 'w') : toMove);
-      if (state) setState({ ...state, selected: null, promotion: null });
+      if (state) {
+        setState({
+          ...state,
+          selected: null,
+          promotion: null,
+          // Stockfish moves here even if this move already continues.
+          replyDue: stockfishFirst ? state.current : null,
+        });
+      }
     },
     stopPlaying: () => {
       setPlaying(null);
+      if (state) setState({ ...state, replyDue: null });
     },
     /**
      * Plays Stockfish's move found for move `at`. Checked against the live state, not
      * this render's: a click that happened since (Back, Stop playing, New position)
-     * wins, and nothing is played unless it's still Stockfish's turn at the end of that
-     * line in a game that's still on.
+     * wins, and nothing is played unless it's still Stockfish's turn there, at the end of
+     * a line or where it owes a reply, in a game that's still on. A move already in the
+     * line is followed, not duplicated; any other starts a branch.
      */
     playEngineMove: (at: NodeId, uci: string) => {
       setState((live) => {
         const you = livePlaying.current;
         if (!live || you === null || live.current !== at) return live;
         const node = getNode(live.tree, at);
-        if (node.children.length > 0 || node.position.sideToMove === you) return live;
+        if (node.position.sideToMove === you) return live;
+        if (node.children.length > 0 && live.replyDue !== at) return live;
         const result = playMove(live.tree, at, uci);
         if (!result) return live;
-        return { tree: result.tree, current: result.id, selected: null, promotion: null };
+        return {
+          tree: result.tree,
+          current: result.id,
+          selected: null,
+          promotion: null,
+          replyDue: null,
+        };
       });
     },
 
@@ -216,7 +261,7 @@ export function useExplorer() {
     deleteFromHere: () => {
       if (!state || state.current === state.tree.root) return;
       const { tree, parent } = deleteSubtree(state.tree, state.current);
-      setState({ tree, current: parent, selected: null, promotion: null });
+      setState({ tree, current: parent, selected: null, promotion: null, replyDue: null });
     },
 
     playLine: (moves: readonly string[], index: number) => {
@@ -224,7 +269,7 @@ export function useExplorer() {
       const { tree, ids } = playLine(state.tree, state.current, moves);
       const target = ids[Math.min(index, ids.length - 1)];
       if (target === undefined) return;
-      setState({ tree, current: target, selected: null, promotion: null });
+      setState({ tree, current: target, selected: null, promotion: null, replyDue: null });
     },
   };
 }

@@ -143,12 +143,14 @@ export function App({
     },
   });
 
-  // Playing against Stockfish: it answers at the end of a line when it's its turn.
+  // Playing against Stockfish: on its turn it answers at the end of a line, or wherever
+  // it owes a reply (your move, or "Stockfish moves first"), branching if needed.
   const playStatus = usePlayVsEngine({
     playing: explorer.playing,
     position: exploring,
     current: explorer.current,
     atLineEnd: explorer.atLineEnd,
+    replyDue: explorer.replyDue,
     completed: analysis.completed,
     playEngineMove: explorer.playEngineMove,
   });

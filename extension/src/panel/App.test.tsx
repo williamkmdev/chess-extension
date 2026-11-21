@@ -1097,6 +1097,89 @@ describe('engine analysis', () => {
       expect(container.querySelector('.move-list')?.textContent).toBe('1. e4 (1. d4 d5) 1... e5');
     });
 
+    it('moves first from inside a line you played, branching off it', async () => {
+      // Self-play 1. e4 e5, go back to Black's turn, then let Stockfish play Black there.
+      await click(button('Confirm position'));
+      await settle();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await dragTo(square('e7'), 'e5');
+      await settle();
+      await click(button('Back'));
+      await settle();
+      expect(confirmedFen()).toBe(AFTER_E4);
+
+      await click(labeledInput('Stockfish moves first'));
+      await click(button('Play vs Stockfish'));
+      expect(turn()).toBe('You play White · Stockfish is thinking…');
+      await finishSearch(AFTER_E4, 'c7c5');
+      expect(confirmedFen()).toBe('rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2');
+      expect(turn()).toBe('You play White · Your move');
+      expect(container.querySelector('.move-list')?.textContent).toBe('1. e4 e5 (1... c5)');
+    });
+
+    it('follows the line instead of duplicating a move that is already there', async () => {
+      await click(button('Confirm position'));
+      await settle();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await dragTo(square('e7'), 'e5');
+      await settle();
+      await click(button('Back'));
+      await settle();
+
+      await click(labeledInput('Stockfish moves first'));
+      await click(button('Play vs Stockfish'));
+      await finishSearch(AFTER_E4, 'e7e5');
+      expect(confirmedFen()).toBe(AFTER_E5);
+      expect(container.querySelector('.move-list')?.textContent).toBe('1. e4 e5');
+    });
+
+    it('answers a move you replay inside a line, branching off it', async () => {
+      // 1. e4 e5 is in the tree; while playing White, go back and play 1. e4 again.
+      await click(button('Confirm position'));
+      await settle();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await dragTo(square('e7'), 'e5');
+      await settle();
+      await click(button('Back'));
+      await click(button('Back'));
+      await settle();
+      await click(button('Play vs Stockfish'));
+
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      expect(turn()).toBe('You play White · Stockfish is thinking…');
+      await finishSearch(AFTER_E4, 'c7c5');
+      expect(container.querySelector('.move-list')?.textContent).toBe('1. e4 e5 (1... c5)');
+    });
+
+    it('cancels a reply owed inside a line once you navigate away from it', async () => {
+      await click(button('Confirm position'));
+      await settle();
+      await dragTo(square('e2'), 'e4');
+      await settle();
+      await dragTo(square('e7'), 'e5');
+      await settle();
+      await click(button('Back'));
+      await click(button('Back'));
+      await settle();
+      await click(button('Play vs Stockfish'));
+      await dragTo(square('e2'), 'e4');
+      await settle();
+
+      // Leave before Stockfish answers, then come back: only navigating, so no move.
+      await click(button('Back'));
+      await settle();
+      await click(button('Forward'));
+      await settle();
+      expect(turn()).toContain('its move is already in this line');
+      await finishSearch(AFTER_E4, 'c7c5');
+      expect(confirmedFen()).toBe(AFTER_E4);
+      expect(container.querySelector('.move-list')?.textContent).toBe('1. e4 e5');
+    });
+
     it('plays nothing for a position you have already left', async () => {
       await startPlaying();
       await dragTo(square('e2'), 'e4');
