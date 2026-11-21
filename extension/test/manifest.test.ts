@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import packageJson from '../package.json';
 import manifest from '../public/manifest.json';
 
 const extensionRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -31,6 +32,12 @@ describe('manifest', () => {
     const icons = { ...manifest.icons, ...manifest.action.default_icon };
     expect(Object.keys(manifest.icons)).toEqual(['16', '32', '48', '128']);
     for (const path of Object.values(icons)) expect(exists(`public/${path}`)).toBe(true);
+  });
+
+  it('has the same version as package.json', () => {
+    // The Web Store reads the manifest's; keep the two from drifting apart.
+    expect(manifest.version).toBe(packageJson.version);
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it('points the side panel at a source page that exists', () => {

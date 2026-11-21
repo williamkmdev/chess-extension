@@ -5,8 +5,10 @@ step with what the extension actually does: the store reviews the listing agains
 
 ## Package
 
-1. Set `version` in `extension/public/manifest.json` (and `package.json`). Each upload
-   must have a higher version than the last; `0.1.0` is a sensible first one.
+1. Check `version` in `extension/public/manifest.json` (currently `0.1.0`). Each upload
+   must have a higher version than the last: bump it with
+   `npm version <x.y.z> --no-git-tag-version` and the same number in the manifest (a
+   test checks the two match).
 2. `npm run build` in `extension/`.
 3. Zip the **contents** of `extension/dist/`, so `manifest.json` is at the zip's root.
 4. Unzip it somewhere else and load that folder unpacked in a clean Chrome profile, then
@@ -74,9 +76,10 @@ content you have the right to show: a board you set up yourself on Lichess, or y
 video. **No frames from other people's videos**, and keep the screenshots out of the
 repository.
 
-**Small promo tile** (440×280): the icon at about 120 px on the left, the name on the
-right, and a short line such as "Why didn't they play this move?". Same dark green
-(`#26322b`) background as the icon.
+**Small promo tile** (440×280): `docs/store/small-promo-tile.png`, a 24-bit PNG as the
+store asks. It shows the icon, the name and "Why didn't they play this move?" on the
+icon's dark green. Made by `npm run promo`, which reads the name from the manifest, so
+rerun it after a rename.
 
 **Marquee tile** (1400×560): optional; only used if the store features the extension.
 
@@ -104,13 +107,11 @@ device and transmits nothing. If the dashboard asks what is collected, the hones
 is that nothing leaves the device. Then tick the three certifications: no selling or
 transfer of data, no unrelated use, no creditworthiness use.
 
-**Privacy policy URL:** recommended even so, to avoid a rejection; a short page in the
-repository works. It should say:
-
-- what the extension accesses: a screenshot of the current tab, on request;
-- that it's processed in the browser and kept only in the open panel;
-- that nothing is sent, stored on a server or shared;
-- that there are no analytics.
+**Privacy policy URL:** <https://github.com/williamkmdev/chess-extension/blob/main/PRIVACY.md>
+(the repository's `PRIVACY.md`, once pushed). Keep it in step with the extension: it
+says what's accessed (a screenshot of the current tab on request, and the clipboard
+when copying a FEN), that everything is processed in the browser and kept only in the
+open panel, and that nothing is sent, stored or shared.
 
 ## Promo video script (about 50 seconds)
 

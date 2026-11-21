@@ -33,18 +33,29 @@ function chunk(type: string, data: Uint8Array): Buffer {
   return Buffer.concat([length, body, crc]);
 }
 
-/** Encodes RGBA pixels as a PNG. */
-export function encodePng({ width, height, data }: Rgba): Buffer {
+/**
+ * Encodes RGBA pixels as a PNG. With `alpha: false` it writes 24-bit RGB and drops the
+ * alpha channel, as the Web Store asks of its images.
+ */
+export function encodePng({ width, height, data }: Rgba, { alpha = true } = {}): Buffer {
+  const channels = alpha ? 4 : 3;
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
   header[8] = 8; // bit depth
-  header[9] = 6; // RGBA
-  const stride = width * 4;
+  header[9] = alpha ? 6 : 2; // RGBA or RGB
+  const stride = width * channels;
   const rows = Buffer.alloc(height * (stride + 1));
   for (let y = 0; y < height; y += 1) {
     // Filter byte 0 (none), then the row.
-    rows.set(data.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
+    const row = y * (stride + 1) + 1;
+    if (alpha) {
+      rows.set(data.subarray(y * width * 4, (y + 1) * width * 4), row);
+    } else {
+      for (let x = 0; x < width; x += 1) {
+        for (let c = 0; c < 3; c += 1) rows[row + x * 3 + c] = data[(y * width + x) * 4 + c] ?? 0;
+      }
+    }
   }
   return Buffer.concat([
     SIGNATURE,

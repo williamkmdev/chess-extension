@@ -7,9 +7,7 @@
 // Writes docs/images/: screenshot.png, profiles.svg, runs.png, coverage.png, tiles.png,
 // recognized.svg, and figures.json with the numbers quoted in the README.
 
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Chess } from 'chess.js';
@@ -26,6 +24,7 @@ import {
   type GrayImage,
 } from '../src/vision/locate.ts';
 import { boardTiles, TILE_SIZE } from '../src/vision/tiles.ts';
+import { renderHtml } from './chrome.ts';
 import { decodePng, encodePng, type Rgba } from './png.ts';
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
@@ -115,45 +114,8 @@ function pageHtml(): string {
   </div>`;
 }
 
-function findChrome(): string {
-  const candidates = [
-    process.env.CHROME,
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-  ];
-  const found = candidates.find((path) => path !== undefined && existsSync(path));
-  if (!found) throw new Error('Chrome not found: set CHROME to its path.');
-  return found;
-}
-
 function screenshot(): Rgba {
-  const dir = mkdtempSync(join(tmpdir(), 'figures-'));
-  try {
-    const page = join(dir, 'page.html');
-    const shot = join(dir, 'shot.png');
-    writeFileSync(page, pageHtml());
-    const result = spawnSync(
-      findChrome(),
-      [
-        '--headless=new',
-        '--disable-gpu',
-        '--hide-scrollbars',
-        '--force-device-scale-factor=1',
-        `--user-data-dir=${join(dir, 'profile')}`,
-        `--window-size=${String(WIDTH)},${String(HEIGHT)}`,
-        `--screenshot=${shot}`,
-        pathToFileURL(page).href,
-      ],
-      { encoding: 'utf8', timeout: 60_000 },
-    );
-    if (!existsSync(shot)) throw new Error(`Chrome made no screenshot: ${result.stderr}`);
-    return decodePng(readFileSync(shot));
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  return decodePng(renderHtml(pageHtml(), WIDTH, HEIGHT));
 }
 
 // ---------------------------------------------------------------------------------------
